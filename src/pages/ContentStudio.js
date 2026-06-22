@@ -153,13 +153,15 @@ const ContentStudio = () => {
         >
           <div
             style={{
-              background: "var(--white)",
               border: "0.5px solid var(--gray-300)",
               borderRadius: "var(--border-radius-lg)",
               padding: "20px",
               display: "flex",
               flexDirection: "column",
               gap: "16px",
+              cursor: "pointer",
+              transition: "border-color 0.15s",
+              background: isSelected ? "#f4f8fb" : "var(--white)",
             }}
           >
             <div

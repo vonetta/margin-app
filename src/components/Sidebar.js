@@ -14,7 +14,7 @@ const navItems = [
 const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, ministry, ministryId, logout } = useAuth();
+  const { user, ministry, logout } = useAuth();
 
   return (
     <div
