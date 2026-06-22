@@ -1,13 +1,54 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Montserrat:wght@300;400;500;600&display=swap");
+
+:root {
+  --primary: #1a1a2e;
+  --primary-light: #16213e;
+  --accent: #e94560;
+  --accent-dark: #c73652;
+  --gold: #f5a623;
+  --gold-dark: #d4891a;
+  --white: #ffffff;
+  --charcoal: #1c1c1c;
+  --gray-100: #f8f7f5;
+  --gray-200: #f0ede8;
+  --gray-300: #e8e6e0;
+  --gray-400: #d0ccc8;
+  --gray-500: #aaa;
+  --gray-600: #888;
+  --gray-700: #555;
+  --border-radius: 8px;
+  --border-radius-lg: 12px;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Montserrat", sans-serif;
+  background: var(--gray-100);
+  color: var(--charcoal);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: "Cinzel", serif;
+}
+
+button {
+  cursor: pointer;
+  font-family: "Montserrat", sans-serif;
+}
+
+input,
+textarea,
+select {
+  font-family: "Montserrat", sans-serif;
 }
