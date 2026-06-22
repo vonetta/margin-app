@@ -161,7 +161,7 @@ const ContentStudio = () => {
               gap: "16px",
               cursor: "pointer",
               transition: "border-color 0.15s",
-              background: isSelected ? "#f4f8fb" : "var(--white)",
+              background: generated ? "#f4f8fb" : "var(--white)",
             }}
           >
             <div
