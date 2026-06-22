@@ -9,6 +9,7 @@ const navItems = [
   { label: "Events", path: "/events", icon: "◈" },
   { label: "People", path: "/people", icon: "◎" },
   { label: "Resources", path: "/resources", icon: "▦" },
+  { label: "AI Profile", path: "/profile", icon: "◐" },
 ];
 
 const Sidebar = () => {

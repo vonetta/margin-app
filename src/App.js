@@ -6,6 +6,7 @@ import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ContentStudio from "./pages/ContentStudio";
+import ProfileEditor from "./pages/ProfileEditor";
 
 const AppShell = ({ children }) => (
   <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -36,6 +37,16 @@ const App = () => {
               <ProtectedRoute>
                 <AppShell>
                   <ContentStudio />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <ProfileEditor />
                 </AppShell>
               </ProtectedRoute>
             }
