@@ -443,8 +443,8 @@ const ContentStudio = () => {
               </div>
             ) : (
               drafts.map((draft) => {
-                const s = statusColors[draft.status];
                 const isSelected = selectedDraft?._id === draft._id;
+                const s = statusColors[draft.status];
                 return (
                   <div
                     key={draft._id}
@@ -453,7 +453,6 @@ const ContentStudio = () => {
                       setFeedback("");
                     }}
                     style={{
-                      background: "var(--white)",
                       border: `0.5px solid ${isSelected ? "var(--navy)" : "var(--gray-300)"}`,
                       borderRadius: "var(--border-radius-lg)",
                       padding: "14px",
