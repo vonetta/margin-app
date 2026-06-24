@@ -1,8 +1,10 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const Dashboard = () => {
   const { user, ministryId } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <div style={{ padding: "32px" }}>
@@ -42,28 +44,43 @@ const Dashboard = () => {
             path: "/content",
           },
           {
+            label: "Flyers",
+            desc: "Generate event flyers",
+            path: "/flyers",
+          },
+          { label: "People", desc: "Directory and groups", path: "/people" },
+          {
             label: "Communications",
             desc: "Announcements and emails",
             path: "/communications",
+            comingSoon: true,
           },
-          { label: "Events", desc: "Manage ministry events", path: "/events" },
-          { label: "People", desc: "Directory and groups", path: "/people" },
+          {
+            label: "Events",
+            desc: "Manage ministry events",
+            path: "/events",
+            comingSoon: true,
+          },
         ].map((card) => (
           <div
             key={card.path}
+            onClick={() => !card.comingSoon && navigate(card.path)}
             style={{
               background: "var(--white)",
               border: "0.5px solid var(--gray-300)",
               borderRadius: "var(--border-radius-lg)",
               padding: "20px",
-              cursor: "pointer",
+              cursor: card.comingSoon ? "default" : "pointer",
+              opacity: card.comingSoon ? 0.5 : 1,
               transition: "border-color 0.15s, box-shadow 0.15s",
             }}
             onMouseEnter={(e) => {
+              if (card.comingSoon) return;
               e.currentTarget.style.borderColor = "var(--navy)";
               e.currentTarget.style.boxShadow = "var(--shadow)";
             }}
             onMouseLeave={(e) => {
+              if (card.comingSoon) return;
               e.currentTarget.style.borderColor = "var(--gray-300)";
               e.currentTarget.style.boxShadow = "none";
             }}
@@ -79,6 +96,17 @@ const Dashboard = () => {
               }}
             >
               {card.label.toUpperCase()}
+              {card.comingSoon && (
+                <span
+                  style={{
+                    marginLeft: "6px",
+                    fontSize: "9px",
+                    color: "var(--gold-dark)",
+                  }}
+                >
+                  SOON
+                </span>
+              )}
             </div>
             <div
               style={{
