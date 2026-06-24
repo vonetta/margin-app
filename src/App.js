@@ -9,6 +9,7 @@ import ContentStudio from "./pages/ContentStudio";
 import ProfileEditor from "./pages/ProfileEditor";
 import FlyerGenerator from "./pages/FlyerGenerator";
 import People from "./pages/People";
+import Onboarding from "./pages/Onboarding";
 
 const AppShell = ({ children }) => (
   <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -59,6 +60,16 @@ const App = () => {
               <ProtectedRoute>
                 <AppShell>
                   <People />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/onboarding"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <Onboarding />
                 </AppShell>
               </ProtectedRoute>
             }

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
 const ProfileEditor = () => {
-  const { user, ministryId, refreshUser } = useAuth();
+  const navigate = useNavigate();
+  const { user, ministryId, refreshUser, switchMinistry } = useAuth();
   const [tab, setTab] = useState("voice");
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -51,17 +53,21 @@ const ProfileEditor = () => {
     setCreatingSub(true);
     setError("");
     try {
+      const subId = newSubId.trim();
       await client.post("/api/ministry/sub-ministries", {
-        ministry_id: newSubId.trim(),
+        ministry_id: subId,
         name: newSubName.trim(),
         tagline: newSubTagline.trim() || undefined,
       });
       setNewSubId("");
       setNewSubName("");
       setNewSubTagline("");
-      flash("Sub-ministry created");
-      await fetchSubMinistries();
       await refreshUser();
+      // Switch straight into the new ministry and kick off its onboarding —
+      // it's created with empty-but-usable defaults, but still needs its
+      // own branding/voice/hashtags set before content sounds right.
+      await switchMinistry(subId);
+      navigate("/onboarding");
     } catch (err) {
       setError(err.response?.data?.error || "Failed to create sub-ministry");
     } finally {

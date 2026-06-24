@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const Dashboard = () => {
-  const { user, ministryId } = useAuth();
+  const { user, ministryId, ministry } = useAuth();
   const navigate = useNavigate();
 
   return (
@@ -29,6 +29,35 @@ const Dashboard = () => {
       >
         {ministryId?.toUpperCase()} workspace
       </p>
+
+      {ministry && !ministry.onboarding_complete && (
+        <div
+          onClick={() => navigate("/onboarding")}
+          style={{
+            background: "#fff8ec",
+            border: "0.5px solid #f0d080",
+            borderRadius: "var(--border-radius-lg)",
+            padding: "14px 18px",
+            marginBottom: "24px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            cursor: "pointer",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: "13px", fontWeight: "500", color: "#b8902e" }}>
+              Finish setting up {ministry.name}
+            </div>
+            <div style={{ fontSize: "11px", color: "#b8902e", opacity: 0.8, marginTop: "2px" }}>
+              Branding, voice, and hashtags aren't fully set up yet
+            </div>
+          </div>
+          <div style={{ fontSize: "12px", color: "#b8902e", fontWeight: "500" }}>
+            Continue setup →
+          </div>
+        </div>
+      )}
 
       <div
         style={{
