@@ -20,6 +20,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // /api/auth/me enriches each membership with the ministry's name/tagline
+  // (the login/register response doesn't), so the ministry switcher has
+  // something to show. Refetch after creating a new sub-ministry too, so
+  // the new membership shows up without a re-login.
+  const refreshUser = async () => {
+    try {
+      const res = await client.get("/api/auth/me");
+      setUser(res.data);
+      localStorage.setItem("margin_user", JSON.stringify(res.data));
+      return res.data;
+    } catch (err) {
+      console.error("Failed to refresh user");
+      return null;
+    }
+  };
+
   useEffect(() => {
     const storedUser = localStorage.getItem("margin_user");
     const storedMinistryId = localStorage.getItem("margin_ministry_id");
@@ -28,6 +44,7 @@ export const AuthProvider = ({ children }) => {
       setUser(parsedUser);
       setMinistryId(storedMinistryId);
       loadMinistryBranding(storedMinistryId);
+      refreshUser();
     }
     setLoading(false);
   }, []);
@@ -47,6 +64,7 @@ export const AuthProvider = ({ children }) => {
     setMinistryId(targetMinistryId);
 
     await loadMinistryBranding(targetMinistryId);
+    await refreshUser();
 
     return user;
   };
@@ -77,6 +95,7 @@ export const AuthProvider = ({ children }) => {
         login,
         logout,
         switchMinistry,
+        refreshUser,
       }}
     >
       {children}

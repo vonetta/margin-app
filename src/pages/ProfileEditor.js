@@ -3,7 +3,7 @@ import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
 const ProfileEditor = () => {
-  const { user, ministryId } = useAuth();
+  const { user, ministryId, refreshUser } = useAuth();
   const [tab, setTab] = useState("voice");
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -17,10 +17,57 @@ const ProfileEditor = () => {
   const [avoidList, setAvoidList] = useState("");
   const [newPhrase, setNewPhrase] = useState("");
 
+  const [subMinistries, setSubMinistries] = useState([]);
+  const [loadingSubMinistries, setLoadingSubMinistries] = useState(false);
+  const [newSubId, setNewSubId] = useState("");
+  const [newSubName, setNewSubName] = useState("");
+  const [newSubTagline, setNewSubTagline] = useState("");
+  const [creatingSub, setCreatingSub] = useState(false);
+
   const membership = user?.ministries?.find(
     (m) => m.ministry_id === ministryId,
   );
   const canEdit = membership && ["admin", "leader"].includes(membership.role);
+  const isAdmin = membership?.role === "admin";
+
+  const fetchSubMinistries = useCallback(async () => {
+    setLoadingSubMinistries(true);
+    try {
+      const res = await client.get("/api/ministry/sub-ministries");
+      setSubMinistries(res.data);
+    } catch (err) {
+      console.error("Failed to load sub-ministries");
+    } finally {
+      setLoadingSubMinistries(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "sub-ministries" && isAdmin) fetchSubMinistries();
+  }, [tab, isAdmin, fetchSubMinistries]);
+
+  const createSubMinistry = async () => {
+    if (!newSubId.trim() || !newSubName.trim()) return;
+    setCreatingSub(true);
+    setError("");
+    try {
+      await client.post("/api/ministry/sub-ministries", {
+        ministry_id: newSubId.trim(),
+        name: newSubName.trim(),
+        tagline: newSubTagline.trim() || undefined,
+      });
+      setNewSubId("");
+      setNewSubName("");
+      setNewSubTagline("");
+      flash("Sub-ministry created");
+      await fetchSubMinistries();
+      await refreshUser();
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to create sub-ministry");
+    } finally {
+      setCreatingSub(false);
+    }
+  };
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -221,6 +268,9 @@ const ProfileEditor = () => {
           { key: "voice", label: "Voice" },
           { key: "phrases", label: "Phrases" },
           { key: "feedback", label: "Feedback" },
+          ...(isAdmin
+            ? [{ key: "sub-ministries", label: "Sub-ministries" }]
+            : []),
         ].map((t) => (
           <button
             key={t.key}
@@ -429,6 +479,113 @@ const ProfileEditor = () => {
                     </div>
                   </div>
                 ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === "sub-ministries" && isAdmin && (
+        <div style={{ maxWidth: "600px" }}>
+          <div style={cardStyle}>
+            <label style={labelStyle}>Create a sub-ministry</label>
+            <p
+              style={{
+                fontSize: "11px",
+                color: "var(--gray-500)",
+                marginBottom: "14px",
+                lineHeight: 1.6,
+              }}
+            >
+              A sub-ministry is a fully separate tenant — its own branding,
+              voice profile, and members — linked here only for
+              organizational display. You'll be added as its admin; no one
+              else gets access unless added there directly.
+            </p>
+            <div style={{ marginBottom: "12px" }}>
+              <label style={labelStyle}>Ministry ID (slug)</label>
+              <input
+                value={newSubId}
+                onChange={(e) => setNewSubId(e.target.value)}
+                placeholder="salt-light"
+                style={inputStyle}
+              />
+            </div>
+            <div style={{ marginBottom: "12px" }}>
+              <label style={labelStyle}>Name</label>
+              <input
+                value={newSubName}
+                onChange={(e) => setNewSubName(e.target.value)}
+                placeholder="Salt & Light"
+                style={inputStyle}
+              />
+            </div>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={labelStyle}>Tagline (optional)</label>
+              <input
+                value={newSubTagline}
+                onChange={(e) => setNewSubTagline(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+            <button
+              onClick={createSubMinistry}
+              disabled={creatingSub || !newSubId.trim() || !newSubName.trim()}
+              style={{
+                padding: "8px 16px",
+                background:
+                  creatingSub || !newSubId.trim() || !newSubName.trim()
+                    ? "var(--gray-400)"
+                    : "var(--primary)",
+                color: "var(--white)",
+                border: "none",
+                borderRadius: "var(--border-radius)",
+                fontSize: "12px",
+                fontWeight: "500",
+              }}
+            >
+              {creatingSub ? "Creating..." : "Create sub-ministry"}
+            </button>
+          </div>
+
+          <div style={cardStyle}>
+            <label style={labelStyle}>
+              Existing sub-ministries ({subMinistries.length})
+            </label>
+            {loadingSubMinistries ? (
+              <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
+                Loading...
+              </div>
+            ) : subMinistries.length === 0 ? (
+              <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
+                None yet.
+              </div>
+            ) : (
+              subMinistries.map((m, i) => (
+                <div
+                  key={m._id}
+                  style={{
+                    padding: "10px 0",
+                    borderBottom:
+                      i < subMinistries.length - 1
+                        ? "0.5px solid var(--gray-300)"
+                        : "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: "500",
+                      color: "var(--charcoal)",
+                    }}
+                  >
+                    {m.name}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>
+                    {m.ministry_id}
+                    {m.tagline ? ` · ${m.tagline}` : ""}
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>

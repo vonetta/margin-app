@@ -16,7 +16,16 @@ const navItems = [
 const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, ministry, logout } = useAuth();
+  const { user, ministryId, ministry, logout, switchMinistry } = useAuth();
+
+  const memberships = user?.ministries || [];
+
+  const handleSwitch = async (e) => {
+    const newId = e.target.value;
+    if (newId === ministryId) return;
+    await switchMinistry(newId);
+    navigate("/");
+  };
 
   return (
     <div
@@ -56,6 +65,30 @@ const Sidebar = () => {
         >
           {ministry?.tagline || "Ministry Operations"}
         </div>
+
+        {memberships.length > 1 && (
+          <select
+            value={ministryId || ""}
+            onChange={handleSwitch}
+            style={{
+              width: "100%",
+              marginTop: "10px",
+              padding: "6px 8px",
+              background: "rgba(255,255,255,0.08)",
+              color: "var(--white)",
+              border: "0.5px solid rgba(255,255,255,0.15)",
+              borderRadius: "6px",
+              fontSize: "11px",
+              outline: "none",
+            }}
+          >
+            {memberships.map((m) => (
+              <option key={m.ministry_id} value={m.ministry_id} style={{ color: "#1c1c1c" }}>
+                {m.name || m.ministry_id}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       <nav style={{ flex: 1, padding: "12px 6px" }}>
