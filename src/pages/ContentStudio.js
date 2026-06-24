@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
+import { useAuth } from "../context/AuthContext";
 
 const PLATFORMS = ["Instagram", "Facebook", "Email", "Quote card"];
 
@@ -10,9 +11,11 @@ const statusColors = {
 };
 
 const ContentStudio = () => {
+  const { switchMinistry } = useAuth();
   const [tab, setTab] = useState("generate");
   const [platform, setPlatform] = useState("Instagram");
   const [chatInput, setChatInput] = useState("");
+  const [switchNotice, setSwitchNotice] = useState(null);
   const [messages, setMessages] = useState([]);
   const [sending, setSending] = useState(false);
   const [finalCaption, setFinalCaption] = useState(null);
@@ -49,11 +52,34 @@ const ContentStudio = () => {
     setSending(true);
     setError("");
     try {
-      const res = await client.post("/api/content/chat", {
+      let res = await client.post("/api/content/chat", {
         platform,
         messages: nextMessages,
       });
-      setMessages(res.data.messages);
+      let displayMessages = res.data.messages;
+
+      if (res.data.switchTo) {
+        setMessages(displayMessages);
+        setSwitchNotice(res.data.switchTo.note);
+        await switchMinistry(res.data.switchTo.ministry_id);
+        // Resend the pre-switch history — it still ends on the user's last
+        // message, as Anthropic requires for a fresh turn — so the new
+        // ministry's own voice/branding generates the real next response.
+        // displayMessages ends on the assistant's switch note instead,
+        // which the API would reject as the start of a new turn.
+        res = await client.post("/api/content/chat", {
+          platform,
+          messages: nextMessages,
+        });
+        // Keep the switch note visible by appending the new turn after it,
+        // rather than overwriting it with res.data.messages wholesale.
+        displayMessages = [
+          ...displayMessages,
+          res.data.messages[res.data.messages.length - 1],
+        ];
+      }
+
+      setMessages(displayMessages);
       setFinalCaption(res.data.done ? res.data.caption : null);
       setFinalEvent(res.data.done ? res.data.event || null : null);
       setFlyerUrl(null);
@@ -81,6 +107,7 @@ const ContentStudio = () => {
     setFinalCaption(null);
     setFinalEvent(null);
     setFlyerUrl(null);
+    setSwitchNotice(null);
     setError("");
   };
 
@@ -354,6 +381,21 @@ const ContentStudio = () => {
                 ))}
               </select>
             </div>
+
+            {switchNotice && (
+              <div
+                style={{
+                  background: "#fff8ec",
+                  border: "0.5px solid #f0d080",
+                  borderRadius: "var(--border-radius)",
+                  padding: "8px 12px",
+                  fontSize: "11px",
+                  color: "#b8902e",
+                }}
+              >
+                ↻ {switchNotice}
+              </div>
+            )}
 
             <div
               style={
