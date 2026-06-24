@@ -11,10 +11,11 @@ const statusColors = {
 
 const ContentStudio = () => {
   const [tab, setTab] = useState("generate");
-  const [prompt, setPrompt] = useState("");
   const [platform, setPlatform] = useState("Instagram");
-  const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(null);
+  const [chatInput, setChatInput] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [sending, setSending] = useState(false);
+  const [finalCaption, setFinalCaption] = useState(null);
   const [drafts, setDrafts] = useState([]);
   const [selectedDraft, setSelectedDraft] = useState(null);
   const [feedback, setFeedback] = useState("");
@@ -40,30 +41,57 @@ const ContentStudio = () => {
     if (tab === "queue") fetchDrafts();
   }, [tab, fetchDrafts]);
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) return;
-    setGenerating(true);
+  const sendTurn = async (nextMessages) => {
+    setSending(true);
     setError("");
-    setGenerated(null);
-
     try {
-      const res = await client.post("/api/content/generate", {
-        prompt,
+      const res = await client.post("/api/content/chat", {
         platform,
+        messages: nextMessages,
       });
-      setGenerated(res.data);
+      setMessages(res.data.messages);
+      setFinalCaption(res.data.done ? res.data.caption : null);
     } catch (err) {
-      setError(err.response?.data?.error || "Generation failed");
+      setError(err.response?.data?.error || "Something went wrong");
     } finally {
-      setGenerating(false);
+      setSending(false);
     }
   };
 
+  const handleSend = async () => {
+    if (!chatInput.trim() || sending) return;
+    const nextMessages = [
+      ...messages,
+      { role: "user", content: chatInput.trim() },
+    ];
+    setChatInput("");
+    setMessages(nextMessages);
+    await sendTurn(nextMessages);
+  };
+
+  const resetChat = () => {
+    setMessages([]);
+    setChatInput("");
+    setFinalCaption(null);
+    setError("");
+  };
+
   const sendToQueue = async () => {
-    setGenerated(null);
-    setPrompt("");
-    setTab("queue");
-    await fetchDrafts();
+    if (!finalCaption) return;
+    try {
+      const firstUserMessage =
+        messages.find((m) => m.role === "user")?.content || "";
+      await client.post("/api/content/drafts", {
+        platform,
+        caption: finalCaption,
+        prompt: firstUserMessage,
+      });
+      resetChat();
+      setTab("queue");
+      await fetchDrafts();
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to save draft");
+    }
   };
 
   const handleApprove = async (draftId) => {
@@ -158,24 +186,46 @@ const ContentStudio = () => {
               padding: "20px",
               display: "flex",
               flexDirection: "column",
-              gap: "16px",
-              cursor: "pointer",
-              transition: "border-color 0.15s",
-              background: generated ? "#f4f8fb" : "var(--white)",
+              gap: "12px",
+              background: "var(--white)",
+              minHeight: "480px",
             }}
           >
             <div
               style={{
-                fontFamily: "Cinzel, serif",
-                fontSize: "10px",
-                fontWeight: "500",
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                color: "var(--navy)",
-                opacity: 0.7,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
               }}
             >
-              New Content
+              <div
+                style={{
+                  fontFamily: "Cinzel, serif",
+                  fontSize: "10px",
+                  fontWeight: "500",
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  color: "var(--navy)",
+                  opacity: 0.7,
+                }}
+              >
+                New Content
+              </div>
+              {messages.length > 0 && (
+                <button
+                  onClick={resetChat}
+                  style={{
+                    padding: "4px 10px",
+                    background: "transparent",
+                    color: "var(--gray-500)",
+                    border: "0.5px solid var(--gray-300)",
+                    borderRadius: "var(--border-radius)",
+                    fontSize: "11px",
+                  }}
+                >
+                  Start over
+                </button>
+              )}
             </div>
 
             <div>
@@ -194,6 +244,7 @@ const ContentStudio = () => {
               <select
                 value={platform}
                 onChange={(e) => setPlatform(e.target.value)}
+                disabled={messages.length > 0}
                 style={{
                   width: "100%",
                   padding: "8px 12px",
@@ -201,7 +252,7 @@ const ContentStudio = () => {
                   borderRadius: "var(--border-radius)",
                   fontSize: "13px",
                   color: "var(--charcoal)",
-                  background: "var(--white)",
+                  background: messages.length > 0 ? "var(--gray-100)" : "var(--white)",
                   outline: "none",
                 }}
               >
@@ -213,26 +264,83 @@ const ContentStudio = () => {
               </select>
             </div>
 
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "10px",
-                  color: "var(--gray-600)",
-                  marginBottom: "6px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                What are we creating content for?
-              </label>
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                overflow: "auto",
+                minHeight: "200px",
+                padding: messages.length > 0 ? "4px" : 0,
+              }}
+            >
+              {messages.length === 0 ? (
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "var(--gray-500)",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  Describe the event or content below — Apostle Khy's
+                  assistant will ask if anything's missing (which entity,
+                  audience, cost, registration link) before writing the
+                  final piece.
+                </div>
+              ) : (
+                messages.map((m, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                      maxWidth: "85%",
+                      background:
+                        m.role === "user" ? "var(--navy)" : "var(--gray-100)",
+                      color: m.role === "user" ? "var(--white)" : "var(--charcoal)",
+                      borderRadius: "var(--border-radius)",
+                      padding: "10px 12px",
+                      fontSize: "12px",
+                      lineHeight: 1.6,
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {m.content}
+                  </div>
+                ))
+              )}
+              {sending && (
+                <div
+                  style={{
+                    alignSelf: "flex-start",
+                    fontSize: "12px",
+                    color: "var(--gray-500)",
+                    padding: "10px 12px",
+                  }}
+                >
+                  Apostle Khy's assistant is thinking...
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: "8px" }}>
               <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                rows={6}
-                placeholder="Worship Workshop, July 20, 12pm - 6pm, $100, lunch provided. A time for worshipers to recharge..."
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                rows={2}
+                placeholder={
+                  messages.length === 0
+                    ? "Worship Workshop, July 20, 12pm - 6pm, $100, lunch provided..."
+                    : "Reply..."
+                }
                 style={{
-                  width: "100%",
+                  flex: 1,
                   padding: "10px 12px",
                   border: "0.5px solid var(--gray-300)",
                   borderRadius: "var(--border-radius)",
@@ -243,16 +351,13 @@ const ContentStudio = () => {
                   lineHeight: 1.6,
                 }}
               />
-            </div>
-
-            <div style={{ display: "flex", gap: "8px" }}>
               <button
-                onClick={handleGenerate}
-                disabled={generating || !prompt.trim()}
+                onClick={handleSend}
+                disabled={sending || !chatInput.trim()}
                 style={{
                   padding: "8px 16px",
                   background:
-                    generating || !prompt.trim()
+                    sending || !chatInput.trim()
                       ? "var(--gray-400)"
                       : "var(--navy)",
                   color: "var(--white)",
@@ -261,26 +366,11 @@ const ContentStudio = () => {
                   fontSize: "12px",
                   fontWeight: "500",
                   letterSpacing: "0.04em",
-                  transition: "background 0.15s",
+                  alignSelf: "flex-end",
                 }}
               >
-                {generating ? "Generating..." : "✦ Generate"}
+                {messages.length === 0 ? "✦ Start" : "Send"}
               </button>
-              {generated && (
-                <button
-                  onClick={() => setGenerated(null)}
-                  style={{
-                    padding: "8px 16px",
-                    background: "transparent",
-                    color: "var(--gray-600)",
-                    border: "0.5px solid var(--gray-300)",
-                    borderRadius: "var(--border-radius)",
-                    fontSize: "12px",
-                  }}
-                >
-                  Clear
-                </button>
-              )}
             </div>
           </div>
 
@@ -324,7 +414,7 @@ const ContentStudio = () => {
               </div>
             )}
 
-            {!generated && !generating && (
+            {!finalCaption && (
               <div
                 style={{
                   flex: 1,
@@ -334,29 +424,16 @@ const ContentStudio = () => {
                   color: "var(--gray-400)",
                   fontSize: "12px",
                   minHeight: "160px",
+                  textAlign: "center",
+                  padding: "0 20px",
                 }}
               >
-                Caption will appear here after generation
+                The final caption will appear here once the conversation has
+                everything it needs
               </div>
             )}
 
-            {generating && (
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "var(--gray-500)",
-                  fontSize: "12px",
-                  minHeight: "160px",
-                }}
-              >
-                Generating in Apostle Khy's voice...
-              </div>
-            )}
-
-            {generated && (
+            {finalCaption && (
               <>
                 <div
                   style={{
@@ -371,7 +448,7 @@ const ContentStudio = () => {
                     flex: 1,
                   }}
                 >
-                  {generated.caption}
+                  {finalCaption}
                 </div>
                 <div style={{ display: "flex", gap: "8px" }}>
                   <button
@@ -388,19 +465,16 @@ const ContentStudio = () => {
                   >
                     ✓ Send to queue
                   </button>
-                  <button
-                    onClick={handleGenerate}
+                  <div
                     style={{
-                      padding: "8px 16px",
-                      background: "transparent",
-                      color: "var(--gray-600)",
-                      border: "0.5px solid var(--gray-300)",
-                      borderRadius: "var(--border-radius)",
-                      fontSize: "12px",
+                      display: "flex",
+                      alignItems: "center",
+                      fontSize: "11px",
+                      color: "var(--gray-500)",
                     }}
                   >
-                    ↺ Regenerate
-                  </button>
+                    Or keep chatting on the left to refine it
+                  </div>
                 </div>
               </>
             )}
