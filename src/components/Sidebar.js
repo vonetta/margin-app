@@ -5,10 +5,11 @@ import { useAuth } from "../context/AuthContext";
 const navItems = [
   { label: "Dashboard", path: "/", icon: "⊞" },
   { label: "Content Studio", path: "/content", icon: "✦" },
-  { label: "Communications", path: "/communications", icon: "✉" },
-  { label: "Events", path: "/events", icon: "◈" },
+  { label: "Communications", path: "/communications", icon: "✉", comingSoon: true },
+  { label: "Events", path: "/events", icon: "◈", comingSoon: true },
+  { label: "Flyers", path: "/flyers", icon: "▣" },
   { label: "People", path: "/people", icon: "◎" },
-  { label: "Resources", path: "/resources", icon: "▦" },
+  { label: "Resources", path: "/resources", icon: "▦", comingSoon: true },
   { label: "AI Profile", path: "/profile", icon: "◐" },
 ];
 
@@ -60,36 +61,50 @@ const Sidebar = () => {
       <nav style={{ flex: 1, padding: "12px 6px" }}>
         {navItems.map((item) => {
           const active = location.pathname === item.path;
+          const disabled = !!item.comingSoon;
           return (
             <div
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => !disabled && navigate(item.path)}
+              title={disabled ? "Coming soon" : undefined}
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "10px",
+                justifyContent: "space-between",
                 padding: "8px 12px",
                 margin: "1px 0",
                 borderRadius: "6px",
                 fontSize: "12px",
-                color: active ? "var(--white)" : "rgba(255,255,255,0.55)",
-                background: active ? "var(--accent)" : "transparent",
-                cursor: "pointer",
+                color: disabled
+                  ? "rgba(255,255,255,0.3)"
+                  : active
+                    ? "var(--white)"
+                    : "rgba(255,255,255,0.55)",
+                background: active && !disabled ? "var(--accent)" : "transparent",
+                cursor: disabled ? "default" : "pointer",
                 transition: "all 0.15s",
                 letterSpacing: "0.02em",
               }}
               onMouseEnter={(e) => {
-                if (!active)
+                if (!active && !disabled)
                   e.currentTarget.style.background = "rgba(255,255,255,0.08)";
               }}
               onMouseLeave={(e) => {
-                if (!active) e.currentTarget.style.background = "transparent";
+                if (!active && !disabled)
+                  e.currentTarget.style.background = "transparent";
               }}
             >
-              <span style={{ fontSize: "14px", opacity: 0.85 }}>
-                {item.icon}
+              <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "14px", opacity: 0.85 }}>
+                  {item.icon}
+                </span>
+                {item.label}
               </span>
-              {item.label}
+              {disabled && (
+                <span style={{ fontSize: "8px", letterSpacing: "0.04em" }}>
+                  SOON
+                </span>
+              )}
             </div>
           );
         })}

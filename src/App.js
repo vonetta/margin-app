@@ -7,6 +7,8 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ContentStudio from "./pages/ContentStudio";
 import ProfileEditor from "./pages/ProfileEditor";
+import FlyerGenerator from "./pages/FlyerGenerator";
+import People from "./pages/People";
 
 const AppShell = ({ children }) => (
   <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -37,6 +39,26 @@ const App = () => {
               <ProtectedRoute>
                 <AppShell>
                   <ContentStudio />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/flyers"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <FlyerGenerator />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/people"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <People />
                 </AppShell>
               </ProtectedRoute>
             }
