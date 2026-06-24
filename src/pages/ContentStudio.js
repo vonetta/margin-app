@@ -16,6 +16,10 @@ const ContentStudio = () => {
   const [messages, setMessages] = useState([]);
   const [sending, setSending] = useState(false);
   const [finalCaption, setFinalCaption] = useState(null);
+  const [finalEvent, setFinalEvent] = useState(null);
+  const [flyerUrl, setFlyerUrl] = useState(null);
+  const [generatingFlyer, setGeneratingFlyer] = useState(false);
+  const [uploadingFlyer, setUploadingFlyer] = useState(false);
   const [drafts, setDrafts] = useState([]);
   const [selectedDraft, setSelectedDraft] = useState(null);
   const [feedback, setFeedback] = useState("");
@@ -51,6 +55,8 @@ const ContentStudio = () => {
       });
       setMessages(res.data.messages);
       setFinalCaption(res.data.done ? res.data.caption : null);
+      setFinalEvent(res.data.done ? res.data.event || null : null);
+      setFlyerUrl(null);
     } catch (err) {
       setError(err.response?.data?.error || "Something went wrong");
     } finally {
@@ -73,7 +79,70 @@ const ContentStudio = () => {
     setMessages([]);
     setChatInput("");
     setFinalCaption(null);
+    setFinalEvent(null);
+    setFlyerUrl(null);
     setError("");
+  };
+
+  const describeUploadedFlyer = (details) => {
+    const lines = [
+      "I already have a flyer made for this. Here's what's on it:",
+    ];
+    if (details.title) lines.push(`Title: ${details.title}`);
+    if (details.subtitle) lines.push(`Subtitle: ${details.subtitle}`);
+    if (details.date) lines.push(`Date: ${details.date}`);
+    if (details.location) lines.push(`Location: ${details.location}`);
+    if (details.cost) lines.push(`Cost: ${details.cost}`);
+    if (details.cta) lines.push(`CTA: ${details.cta}`);
+    if (details.registration_url)
+      lines.push(`Registration: ${details.registration_url}`);
+    if (details.other_details) lines.push(`Other: ${details.other_details}`);
+    lines.push(
+      "Just write a caption for it — no need to generate a new flyer image.",
+    );
+    return lines.join("\n");
+  };
+
+  const handleUploadFlyer = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploadingFlyer(true);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("flyer", file);
+      const res = await client.post("/api/content/extract-flyer", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setChatInput(describeUploadedFlyer(res.data));
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to read the flyer");
+    } finally {
+      setUploadingFlyer(false);
+    }
+  };
+
+  const handleGenerateFlyer = async () => {
+    if (!finalEvent?.title) return;
+    setGeneratingFlyer(true);
+    setError("");
+    try {
+      const res = await client.post("/api/flyers/generate", {
+        title: finalEvent.title,
+        subtitle: finalEvent.subtitle,
+        date: finalEvent.date,
+        location: finalEvent.location,
+        cost: finalEvent.cost,
+        cta: finalEvent.cta,
+        qr_url: finalEvent.registration_url,
+      });
+      setFlyerUrl(res.data.social_url);
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to generate flyer");
+    } finally {
+      setGeneratingFlyer(false);
+    }
   };
 
   const sendToQueue = async () => {
@@ -85,6 +154,7 @@ const ContentStudio = () => {
         platform,
         caption: finalCaption,
         prompt: firstUserMessage,
+        image_url: flyerUrl || undefined,
       });
       resetChat();
       setTab("queue");
@@ -211,7 +281,7 @@ const ContentStudio = () => {
               >
                 New Content
               </div>
-              {messages.length > 0 && (
+              {messages.length > 0 ? (
                 <button
                   onClick={resetChat}
                   style={{
@@ -225,6 +295,27 @@ const ContentStudio = () => {
                 >
                   Start over
                 </button>
+              ) : (
+                <label
+                  style={{
+                    padding: "4px 10px",
+                    background: "transparent",
+                    color: "var(--gray-500)",
+                    border: "0.5px solid var(--gray-300)",
+                    borderRadius: "var(--border-radius)",
+                    fontSize: "11px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {uploadingFlyer ? "Reading flyer..." : "Already made a flyer?"}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleUploadFlyer}
+                    disabled={uploadingFlyer}
+                    style={{ display: "none" }}
+                  />
+                </label>
               )}
             </div>
 
@@ -265,15 +356,19 @@ const ContentStudio = () => {
             </div>
 
             <div
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-                overflow: "auto",
-                minHeight: "200px",
-                padding: messages.length > 0 ? "4px" : 0,
-              }}
+              style={
+                messages.length > 0
+                  ? {
+                      flex: 1,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                      overflow: "auto",
+                      minHeight: "200px",
+                      padding: "4px",
+                    }
+                  : { display: "flex", flexDirection: "column", gap: "8px" }
+              }
             >
               {messages.length === 0 ? (
                 <div
@@ -435,6 +530,17 @@ const ContentStudio = () => {
 
             {finalCaption && (
               <>
+                {flyerUrl && (
+                  <img
+                    src={flyerUrl}
+                    alt="Generated flyer"
+                    style={{
+                      width: "100%",
+                      borderRadius: "var(--border-radius)",
+                      border: "0.5px solid var(--gray-300)",
+                    }}
+                  />
+                )}
                 <div
                   style={{
                     background: "var(--gray-100)",
@@ -445,12 +551,12 @@ const ContentStudio = () => {
                     lineHeight: 1.8,
                     color: "var(--charcoal)",
                     whiteSpace: "pre-wrap",
-                    flex: 1,
+                    flex: flyerUrl ? "none" : 1,
                   }}
                 >
                   {finalCaption}
                 </div>
-                <div style={{ display: "flex", gap: "8px" }}>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   <button
                     onClick={sendToQueue}
                     style={{
@@ -465,16 +571,36 @@ const ContentStudio = () => {
                   >
                     ✓ Send to queue
                   </button>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      fontSize: "11px",
-                      color: "var(--gray-500)",
-                    }}
-                  >
-                    Or keep chatting on the left to refine it
-                  </div>
+                  {finalEvent?.title && !flyerUrl && (
+                    <button
+                      onClick={handleGenerateFlyer}
+                      disabled={generatingFlyer}
+                      style={{
+                        padding: "8px 16px",
+                        background: "transparent",
+                        color: "var(--gray-600)",
+                        border: "0.5px solid var(--gray-300)",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "12px",
+                      }}
+                    >
+                      {generatingFlyer
+                        ? "Generating flyer..."
+                        : "▣ Generate matching flyer"}
+                    </button>
+                  )}
+                  {!finalEvent?.title && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        fontSize: "11px",
+                        color: "var(--gray-500)",
+                      }}
+                    >
+                      Or keep chatting on the left to refine it
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -658,6 +784,18 @@ const ContentStudio = () => {
                     selectedDraft.status.slice(1)}
                 </span>
               </div>
+
+              {selectedDraft.image_url && (
+                <img
+                  src={selectedDraft.image_url}
+                  alt="Flyer"
+                  style={{
+                    width: "100%",
+                    borderRadius: "var(--border-radius)",
+                    border: "0.5px solid var(--gray-300)",
+                  }}
+                />
+              )}
 
               <div>
                 <div
