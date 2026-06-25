@@ -17,7 +17,12 @@ const PLATFORM_DIMENSIONS = {
   Email: { width: 1200, height: 628 },
 };
 
-const CANVAS_WIDTH = 320;
+// Wide enough that a slider's full min-to-max swing is actually visible at
+// this scale — at 320px (the original size) a 10px change in, say,
+// description_size (14-24 range) scaled down to a ~3px difference on
+// screen, which read as "nothing happened" even though the value was
+// correctly updating underneath.
+const CANVAS_WIDTH = 480;
 
 const FlyerPreviewCanvas = ({ content = {}, style = {}, branding = {}, platform = null }) => {
   const colors = branding.colors || {};
