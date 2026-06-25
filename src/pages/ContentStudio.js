@@ -158,6 +158,9 @@ const ContentStudio = () => {
       const res = await client.post("/api/flyers/generate", {
         title: finalEvent.title,
         subtitle: finalEvent.subtitle,
+        description: finalEvent.description,
+        theme_tags: finalEvent.theme_tags,
+        audience: finalEvent.audience,
         date: finalEvent.date,
         location: finalEvent.location,
         cost: finalEvent.cost,
@@ -620,10 +623,23 @@ const ContentStudio = () => {
                       style={{
                         padding: "8px 16px",
                         background: "transparent",
-                        color: "var(--gray-600)",
-                        border: "0.5px solid var(--gray-300)",
+                        color: generatingFlyer ? "var(--gray-400)" : "var(--navy)",
+                        border: `0.5px solid ${generatingFlyer ? "var(--gray-300)" : "var(--navy)"}`,
                         borderRadius: "var(--border-radius)",
                         fontSize: "12px",
+                        fontWeight: "500",
+                        cursor: generatingFlyer ? "default" : "pointer",
+                        transition: "background 0.15s, color 0.15s",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (generatingFlyer) return;
+                        e.currentTarget.style.background = "var(--navy)";
+                        e.currentTarget.style.color = "var(--white)";
+                      }}
+                      onMouseLeave={(e) => {
+                        if (generatingFlyer) return;
+                        e.currentTarget.style.background = "transparent";
+                        e.currentTarget.style.color = "var(--navy)";
                       }}
                     >
                       {generatingFlyer
