@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import FlyerPreviewCanvas from "./FlyerPreviewCanvas";
 
 // Mirrors src/services/layouts/styleSchema.js on the backend — kept in sync
 // manually since the wizard needs human-readable labels/steps the backend
@@ -19,12 +20,13 @@ const cardStyle = {
   border: "0.5px solid var(--gray-300)",
   borderRadius: "var(--border-radius-lg)",
   padding: "28px",
-  maxWidth: "420px",
-  margin: "0 auto",
+  width: "320px",
 };
 
 const FlyerStyleWizard = ({
   initialStyle,
+  content,
+  branding,
   hasDescription,
   hasTags,
   onComplete,
@@ -72,133 +74,137 @@ const FlyerStyleWizard = ({
         padding: "20px",
       }}
     >
-      <div style={cardStyle}>
-        <div
-          style={{
-            fontSize: "10px",
-            color: "var(--gray-500)",
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            marginBottom: "6px",
-          }}
-        >
-          Step {stepIndex + 1} of {steps.length}
-        </div>
-        <div
-          style={{
-            fontFamily: "Cinzel, serif",
-            fontSize: "16px",
-            fontWeight: "500",
-            color: "var(--navy)",
-            marginBottom: "20px",
-          }}
-        >
-          {field.label}
-        </div>
+      <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
+        <FlyerPreviewCanvas content={content} style={style} branding={branding} />
 
-        {isBoolean ? (
-          <div style={{ display: "flex", gap: "10px", marginBottom: "24px" }}>
-            <button
-              onClick={() => setStyle((s) => ({ ...s, [stepKey]: true }))}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: "var(--border-radius)",
-                border: `0.5px solid ${style[stepKey] ? "var(--navy)" : "var(--gray-300)"}`,
-                background: style[stepKey] ? "var(--navy)" : "transparent",
-                color: style[stepKey] ? "var(--white)" : "var(--gray-600)",
-                fontSize: "13px",
-                fontWeight: "500",
-              }}
-            >
-              Show
-            </button>
-            <button
-              onClick={() => setStyle((s) => ({ ...s, [stepKey]: false }))}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: "var(--border-radius)",
-                border: `0.5px solid ${!style[stepKey] ? "var(--navy)" : "var(--gray-300)"}`,
-                background: !style[stepKey] ? "var(--navy)" : "transparent",
-                color: !style[stepKey] ? "var(--white)" : "var(--gray-600)",
-                fontSize: "13px",
-                fontWeight: "500",
-              }}
-            >
-              Hide
-            </button>
-          </div>
-        ) : (
-          <div style={{ marginBottom: "24px" }}>
-            <input
-              type="range"
-              min={field.min}
-              max={field.max}
-              step={field.step}
-              value={style[stepKey]}
-              onChange={(e) =>
-                setStyle((s) => ({ ...s, [stepKey]: Number(e.target.value) }))
-              }
-              style={{ width: "100%" }}
-            />
-            <div
-              style={{
-                textAlign: "center",
-                fontSize: "13px",
-                color: "var(--gray-600)",
-                marginTop: "8px",
-              }}
-            >
-              {style[stepKey]}
-              {field.unit}
-            </div>
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: "8px" }}>
-          <button
-            onClick={handleNext}
+        <div style={cardStyle}>
+          <div
             style={{
-              flex: 1,
-              padding: "10px 16px",
-              background: "var(--navy)",
-              color: "var(--white)",
-              border: "none",
-              borderRadius: "var(--border-radius)",
-              fontSize: "13px",
-              fontWeight: "500",
+              fontSize: "10px",
+              color: "var(--gray-500)",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              marginBottom: "6px",
             }}
           >
-            {isLast ? "✦ Generate flyer" : "Next"}
-          </button>
-          {stepIndex > 0 && (
+            Step {stepIndex + 1} of {steps.length}
+          </div>
+          <div
+            style={{
+              fontFamily: "Cinzel, serif",
+              fontSize: "16px",
+              fontWeight: "500",
+              color: "var(--navy)",
+              marginBottom: "20px",
+            }}
+          >
+            {field.label}
+          </div>
+
+          {isBoolean ? (
+            <div style={{ display: "flex", gap: "10px", marginBottom: "24px" }}>
+              <button
+                onClick={() => setStyle((s) => ({ ...s, [stepKey]: true }))}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  borderRadius: "var(--border-radius)",
+                  border: `0.5px solid ${style[stepKey] ? "var(--navy)" : "var(--gray-300)"}`,
+                  background: style[stepKey] ? "var(--navy)" : "transparent",
+                  color: style[stepKey] ? "var(--white)" : "var(--gray-600)",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                }}
+              >
+                Show
+              </button>
+              <button
+                onClick={() => setStyle((s) => ({ ...s, [stepKey]: false }))}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  borderRadius: "var(--border-radius)",
+                  border: `0.5px solid ${!style[stepKey] ? "var(--navy)" : "var(--gray-300)"}`,
+                  background: !style[stepKey] ? "var(--navy)" : "transparent",
+                  color: !style[stepKey] ? "var(--white)" : "var(--gray-600)",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                }}
+              >
+                Hide
+              </button>
+            </div>
+          ) : (
+            <div style={{ marginBottom: "24px" }}>
+              <input
+                type="range"
+                min={field.min}
+                max={field.max}
+                step={field.step}
+                value={style[stepKey]}
+                onChange={(e) =>
+                  setStyle((s) => ({ ...s, [stepKey]: Number(e.target.value) }))
+                }
+                style={{ width: "100%" }}
+              />
+              <div
+                style={{
+                  textAlign: "center",
+                  fontSize: "13px",
+                  color: "var(--gray-600)",
+                  marginTop: "8px",
+                }}
+              >
+                {style[stepKey]}
+                {field.unit}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "8px" }}>
             <button
-              onClick={handleBack}
+              onClick={handleNext}
+              style={{
+                flex: 1,
+                padding: "10px 16px",
+                background: "var(--navy)",
+                color: "var(--white)",
+                border: "none",
+                borderRadius: "var(--border-radius)",
+                fontSize: "13px",
+                fontWeight: "500",
+              }}
+            >
+              {isLast ? "✦ Generate flyer" : "Next"}
+            </button>
+            {stepIndex > 0 && (
+              <button
+                onClick={handleBack}
+                style={{
+                  padding: "10px 16px",
+                  background: "transparent",
+                  color: "var(--gray-600)",
+                  border: "0.5px solid var(--gray-300)",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "13px",
+                }}
+              >
+                Back
+              </button>
+            )}
+            <button
+              onClick={onCancel}
               style={{
                 padding: "10px 16px",
                 background: "transparent",
-                color: "var(--gray-600)",
-                border: "0.5px solid var(--gray-300)",
-                borderRadius: "var(--border-radius)",
+                color: "var(--gray-500)",
+                border: "none",
                 fontSize: "13px",
               }}
             >
-              Back
+              Cancel
             </button>
-          )}
-          <button
-            onClick={onCancel}
-            style={{
-              padding: "10px 16px",
-              background: "transparent",
-              color: "var(--gray-500)",
-              border: "none",
-              fontSize: "13px",
-            }}
-          >
-            Cancel
-          </button>
+          </div>
         </div>
       </div>
     </div>

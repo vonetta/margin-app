@@ -12,7 +12,7 @@ const statusColors = {
 };
 
 const ContentStudio = () => {
-  const { switchMinistry } = useAuth();
+  const { switchMinistry, ministry } = useAuth();
   const [tab, setTab] = useState("generate");
   const [platform, setPlatform] = useState("Instagram");
   const [chatInput, setChatInput] = useState("");
@@ -179,6 +179,7 @@ const ContentStudio = () => {
         subtitle: finalEvent.subtitle,
         description: finalEvent.description,
         theme_tags: finalEvent.theme_tags,
+        highlights: finalEvent.highlights,
         audience: finalEvent.audience,
         date: finalEvent.date,
         location: finalEvent.location,
@@ -991,6 +992,8 @@ const ContentStudio = () => {
       {showStyleWizard && finalStyle && (
         <FlyerStyleWizard
           initialStyle={finalStyle}
+          content={finalEvent}
+          branding={ministry?.branding}
           hasDescription={!!finalEvent?.description}
           hasTags={!!finalEvent?.theme_tags?.length}
           onComplete={handleGenerateFlyer}
