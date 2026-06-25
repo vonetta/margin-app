@@ -187,6 +187,7 @@ const ContentStudio = () => {
         cta: finalEvent.cta,
         qr_url: finalEvent.registration_url,
         style: style || finalStyle || undefined,
+        platform,
       });
       setFlyerUrl(res.data.social_url);
       if (style) setFinalStyle(style);
@@ -994,6 +995,7 @@ const ContentStudio = () => {
           initialStyle={finalStyle}
           content={finalEvent}
           branding={ministry?.branding}
+          platform={platform}
           hasDescription={!!finalEvent?.description}
           hasTags={!!finalEvent?.theme_tags?.length}
           onComplete={handleGenerateFlyer}

@@ -7,16 +7,28 @@ import React from "react";
 // simplified approximation so the wizard can update it instantly as
 // sliders move, without a Puppeteer round-trip per tick. The real PNG
 // always comes from the server; this is just so adjustments aren't blind.
-const CANVAS_WIDTH = 320;
-const CANVAS_HEIGHT = 400;
-const SCALE = CANVAS_WIDTH / 1080; // matches the real flyer's social size
+// Mirrors src/services/layouts/shared.js's PLATFORM_DIMENSIONS — the
+// preview should match the real output's aspect ratio, or sliders end up
+// tuned against proportions the actual flyer won't have.
+const PLATFORM_DIMENSIONS = {
+  Instagram: { width: 1080, height: 1350 },
+  Facebook: { width: 1200, height: 1200 },
+  "Quote card": { width: 1080, height: 1080 },
+  Email: { width: 1200, height: 628 },
+};
 
-const FlyerPreviewCanvas = ({ content = {}, style = {}, branding = {} }) => {
+const CANVAS_WIDTH = 320;
+
+const FlyerPreviewCanvas = ({ content = {}, style = {}, branding = {}, platform = null }) => {
   const colors = branding.colors || {};
   const primary = colors.primary || "#1a1a2e";
   const accent = colors.accent || "#e94560";
   const gold = colors.gold || "#f5a623";
   const bg = colors.background || "#ffffff";
+
+  const realDims = PLATFORM_DIMENSIONS[platform] || { width: 1080, height: 1350 };
+  const SCALE = CANVAS_WIDTH / realDims.width;
+  const CANVAS_HEIGHT = Math.round(realDims.height * SCALE);
 
   const px = (n) => Math.max(6, Math.round(n * SCALE));
 

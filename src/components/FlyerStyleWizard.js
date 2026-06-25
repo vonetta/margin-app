@@ -27,6 +27,7 @@ const FlyerStyleWizard = ({
   initialStyle,
   content,
   branding,
+  platform,
   hasDescription,
   hasTags,
   onComplete,
@@ -75,7 +76,12 @@ const FlyerStyleWizard = ({
       }}
     >
       <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
-        <FlyerPreviewCanvas content={content} style={style} branding={branding} />
+        <FlyerPreviewCanvas
+          content={content}
+          style={style}
+          branding={branding}
+          platform={platform}
+        />
 
         <div style={cardStyle}>
           <div
