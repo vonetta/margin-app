@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import FlyerStyleWizard from "../components/FlyerStyleWizard";
 
 const PLATFORMS = ["Instagram", "Facebook", "Email", "Quote card"];
 
@@ -20,6 +21,8 @@ const ContentStudio = () => {
   const [sending, setSending] = useState(false);
   const [finalCaption, setFinalCaption] = useState(null);
   const [finalEvent, setFinalEvent] = useState(null);
+  const [finalStyle, setFinalStyle] = useState(null);
+  const [showStyleWizard, setShowStyleWizard] = useState(false);
   const [flyerUrl, setFlyerUrl] = useState(null);
   const [generatingFlyer, setGeneratingFlyer] = useState(false);
   const [uploadingFlyer, setUploadingFlyer] = useState(false);
@@ -82,6 +85,7 @@ const ContentStudio = () => {
       setMessages(displayMessages);
       setFinalCaption(res.data.done ? res.data.caption : null);
       setFinalEvent(res.data.done ? res.data.event || null : null);
+      setFinalStyle(res.data.done ? res.data.style || null : null);
       setFlyerUrl(null);
     } catch (err) {
       setError(err.response?.data?.error || "Something went wrong");
@@ -106,6 +110,8 @@ const ContentStudio = () => {
     setChatInput("");
     setFinalCaption(null);
     setFinalEvent(null);
+    setFinalStyle(null);
+    setShowStyleWizard(false);
     setFlyerUrl(null);
     setSwitchNotice(null);
     setError("");
@@ -150,8 +156,21 @@ const ContentStudio = () => {
     }
   };
 
-  const handleGenerateFlyer = async () => {
+  const openStyleWizard = () => {
+    // The AI always returns a style object alongside a finalized event, so
+    // this should never actually be missing — falling straight through to
+    // generation with server defaults rather than silently doing nothing
+    // is just a defensive fallback.
+    if (finalStyle) {
+      setShowStyleWizard(true);
+    } else {
+      handleGenerateFlyer();
+    }
+  };
+
+  const handleGenerateFlyer = async (style) => {
     if (!finalEvent?.title) return;
+    setShowStyleWizard(false);
     setGeneratingFlyer(true);
     setError("");
     try {
@@ -166,8 +185,10 @@ const ContentStudio = () => {
         cost: finalEvent.cost,
         cta: finalEvent.cta,
         qr_url: finalEvent.registration_url,
+        style: style || finalStyle || undefined,
       });
       setFlyerUrl(res.data.social_url);
+      if (style) setFinalStyle(style);
     } catch (err) {
       setError(err.response?.data?.error || "Failed to generate flyer");
     } finally {
@@ -618,7 +639,7 @@ const ContentStudio = () => {
                   </button>
                   {finalEvent?.title && !flyerUrl && (
                     <button
-                      onClick={handleGenerateFlyer}
+                      onClick={openStyleWizard}
                       disabled={generatingFlyer}
                       style={{
                         padding: "8px 16px",
@@ -645,6 +666,22 @@ const ContentStudio = () => {
                       {generatingFlyer
                         ? "Generating flyer..."
                         : "▣ Generate matching flyer"}
+                    </button>
+                  )}
+                  {finalEvent?.title && flyerUrl && (
+                    <button
+                      onClick={openStyleWizard}
+                      disabled={generatingFlyer}
+                      style={{
+                        padding: "8px 16px",
+                        background: "transparent",
+                        color: "var(--gray-600)",
+                        border: "0.5px solid var(--gray-300)",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "12px",
+                      }}
+                    >
+                      ↺ Adjust styling
                     </button>
                   )}
                   {!finalEvent?.title && (
@@ -949,6 +986,16 @@ const ContentStudio = () => {
             </div>
           )}
         </div>
+      )}
+
+      {showStyleWizard && finalStyle && (
+        <FlyerStyleWizard
+          initialStyle={finalStyle}
+          hasDescription={!!finalEvent?.description}
+          hasTags={!!finalEvent?.theme_tags?.length}
+          onComplete={handleGenerateFlyer}
+          onCancel={() => setShowStyleWizard(false)}
+        />
       )}
     </div>
   );
