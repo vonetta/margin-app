@@ -31,6 +31,14 @@ const ContentStudio = () => {
   const [feedback, setFeedback] = useState("");
   const [loadingDrafts, setLoadingDrafts] = useState(false);
   const [error, setError] = useState("");
+  const [typeSystemFonts, setTypeSystemFonts] = useState([]);
+
+  useEffect(() => {
+    client
+      .get("/api/profile")
+      .then((res) => setTypeSystemFonts(res.data?.type_system?.fonts || []))
+      .catch(() => setTypeSystemFonts([]));
+  }, []);
 
   const fetchDrafts = useCallback(async () => {
     setLoadingDrafts(true);
@@ -168,7 +176,7 @@ const ContentStudio = () => {
     }
   };
 
-  const handleGenerateFlyer = async (style) => {
+  const handleGenerateFlyer = async (style, backgroundUrl) => {
     if (!finalEvent?.title) return;
     setShowStyleWizard(false);
     setGeneratingFlyer(true);
@@ -187,6 +195,7 @@ const ContentStudio = () => {
         cta: finalEvent.cta,
         qr_url: finalEvent.registration_url,
         style: style || finalStyle || undefined,
+        background_url: backgroundUrl || undefined,
         platform,
       });
       setFlyerUrl(res.data.social_url);
@@ -996,6 +1005,7 @@ const ContentStudio = () => {
           content={finalEvent}
           branding={ministry?.branding}
           platform={platform}
+          typeSystemFonts={typeSystemFonts}
           hasSubtitle={!!finalEvent?.subtitle}
           hasDescription={!!finalEvent?.description}
           hasTags={!!finalEvent?.theme_tags?.length}

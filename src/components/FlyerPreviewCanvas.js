@@ -1,15 +1,15 @@
-import React from "react";
+import React, { useEffect } from "react";
+import { deriveColorVariants } from "../utils/colorVariants";
 
 // A live, client-side mirror of src/services/layouts/monument.js's no-host
 // composition (Content Studio's chat never collects a host/speakers, so
 // that half of the real template never applies here). This is NOT a
 // pixel-perfect copy of the server-rendered flyer — it's deliberately a
 // simplified approximation so the wizard can update it instantly as
-// sliders move, without a Puppeteer round-trip per tick. The real PNG
-// always comes from the server; this is just so adjustments aren't blind.
-// Mirrors src/services/layouts/shared.js's PLATFORM_DIMENSIONS — the
-// preview should match the real output's aspect ratio, or sliders end up
-// tuned against proportions the actual flyer won't have.
+// sliders/choices change, without a Puppeteer round-trip per tick. The real
+// PNG always comes from the server; this is just so adjustments aren't
+// blind. Mirrors monument.js's full-bleed-background + fading-scrim
+// composition and percentages, not the older hard-edged side panel.
 const PLATFORM_DIMENSIONS = {
   Instagram: { width: 1080, height: 1350 },
   Facebook: { width: 1200, height: 1200 },
@@ -17,19 +17,44 @@ const PLATFORM_DIMENSIONS = {
   Email: { width: 1200, height: 628 },
 };
 
-// Wide enough that a slider's full min-to-max swing is actually visible at
-// this scale — at 320px (the original size) a 10px change in, say,
-// description_size (14-24 range) scaled down to a ~3px difference on
-// screen, which read as "nothing happened" even though the value was
-// correctly updating underneath.
 const CANVAS_WIDTH = 480;
 
-const FlyerPreviewCanvas = ({ content = {}, style = {}, branding = {}, platform = null }) => {
-  const colors = branding.colors || {};
-  const primary = colors.primary || "#1a1a2e";
-  const accent = colors.accent || "#e94560";
-  const gold = colors.gold || "#f5a623";
-  const bg = colors.background || "#ffffff";
+// Loads a Google Font on demand so the preview can actually show a font
+// override, not just apply a CSS font-family the browser doesn't have.
+const useGoogleFont = (fontName) => {
+  useEffect(() => {
+    if (!fontName) return;
+    const id = `preview-font-${fontName.replace(/\s+/g, "-")}`;
+    if (document.getElementById(id)) return;
+    const link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/\s+/g, "+")}:wght@400;600;800&display=swap`;
+    document.head.appendChild(link);
+  }, [fontName]);
+};
+
+const FlyerPreviewCanvas = ({
+  content = {},
+  style = {},
+  branding = {},
+  platform = null,
+  backgroundImageUrl = null,
+}) => {
+  const baseColors = branding.colors || {};
+  const variants = deriveColorVariants({
+    primary: baseColors.primary,
+    accent: baseColors.accent,
+    gold: baseColors.gold,
+  });
+  const { primary, accent, gold } =
+    variants[style.color_variant] || variants.brand;
+  const bg = baseColors.background || "#ffffff";
+
+  const displayFont = style.display_font || null;
+  const accentFont = style.accent_font || null;
+  useGoogleFont(displayFont);
+  useGoogleFont(accentFont);
 
   const realDims = PLATFORM_DIMENSIONS[platform] || { width: 1080, height: 1350 };
   const SCALE = CANVAS_WIDTH / realDims.width;
@@ -42,6 +67,32 @@ const FlyerPreviewCanvas = ({ content = {}, style = {}, branding = {}, platform 
     content.location && { icon: "📍", value: content.location },
     content.cost && { icon: "💰", value: content.cost },
   ].filter(Boolean);
+
+  const backgroundLayer = backgroundImageUrl
+    ? {
+        backgroundImage: `linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.25)), url(${backgroundImageUrl})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }
+    : {
+        background: `radial-gradient(circle at 25% 15%, rgba(255,255,255,0.18), transparent 45%), linear-gradient(165deg, ${primary}, ${accent}, ${gold})`,
+      };
+
+  const logoUrl = branding.logo_url;
+  const logoSize = px(style.logo_size || 84);
+  const logoPlacement = style.logo_placement || "top-left";
+
+  const logoEl = logoUrl && (
+    <img
+      src={logoUrl}
+      alt="logo"
+      style={{
+        height: logoSize,
+        marginBottom: px(16),
+        filter: logoPlacement === "footer" ? "brightness(0) invert(1)" : "none",
+      }}
+    />
+  );
 
   return (
     <div
@@ -61,31 +112,42 @@ const FlyerPreviewCanvas = ({ content = {}, style = {}, branding = {}, platform 
       <div
         style={{
           position: "relative",
-          flex: "0 0 auto",
+          flex: 1,
           minHeight: px(260),
+          ...backgroundLayer,
         }}
       >
         <div
           style={{
             position: "absolute",
             top: 0,
-            right: 0,
+            left: 0,
             bottom: 0,
-            width: "44%",
-            borderLeft: `${px(6)}px solid ${gold}`,
-            background: `radial-gradient(circle at 25% 15%, rgba(255,255,255,0.18), transparent 45%), linear-gradient(165deg, ${primary}, ${accent}, ${gold})`,
+            width: "58%",
+            background: `linear-gradient(90deg, ${bg} 0%, ${bg} 42%, rgba(0,0,0,0) 100%)`,
+            zIndex: 1,
           }}
         />
         <div
           style={{
             position: "relative",
             zIndex: 2,
-            width: "58%",
-            padding: `${px(48)}px ${px(56)}px`,
+            width: "50%",
+            padding: `${px(48)}px ${px(48)}px`,
           }}
         >
+          {logoPlacement !== "footer" && logoEl && (
+            <div
+              style={{
+                textAlign: logoPlacement === "top-center" ? "center" : "left",
+              }}
+            >
+              {logoEl}
+            </div>
+          )}
           <div
             style={{
+              fontFamily: displayFont || "Georgia, serif",
               fontWeight: 800,
               fontSize: px(style.title_size || 70),
               lineHeight: 1.0,
@@ -98,7 +160,7 @@ const FlyerPreviewCanvas = ({ content = {}, style = {}, branding = {}, platform 
           {content.subtitle && (
             <div
               style={{
-                fontFamily: "cursive",
+                fontFamily: accentFont || "cursive",
                 fontSize: px(style.subtitle_size || 48),
                 color: accent,
                 marginTop: px(8),
@@ -110,15 +172,29 @@ const FlyerPreviewCanvas = ({ content = {}, style = {}, branding = {}, platform 
           {style.tags_visible && content.theme_tags?.length > 0 && (
             <div
               style={{
-                marginTop: px(18),
-                fontSize: px(13),
-                fontWeight: 700,
-                letterSpacing: "0.04em",
-                color: primary,
-                textTransform: "uppercase",
+                marginTop: px(20),
+                display: "flex",
+                flexWrap: "wrap",
+                gap: px(8),
               }}
             >
-              {content.theme_tags.join(" • ")}
+              {content.theme_tags.map((t, i) => (
+                <span
+                  key={i}
+                  style={{
+                    padding: `${px(6)}px ${px(14)}px`,
+                    borderRadius: px(16),
+                    border: `1.5px solid ${primary}88`,
+                    fontSize: px(12),
+                    fontWeight: 700,
+                    letterSpacing: "0.04em",
+                    color: primary,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {t}
+                </span>
+              ))}
             </div>
           )}
           {style.description_visible && content.description && (
@@ -135,7 +211,7 @@ const FlyerPreviewCanvas = ({ content = {}, style = {}, branding = {}, platform 
             </div>
           )}
           {content.highlights?.length > 0 && (
-            <div style={{ marginTop: px(16), display: "flex", flexDirection: "column", gap: px(4) }}>
+            <div style={{ marginTop: px(16), display: "flex", flexDirection: "column", gap: px(6) }}>
               {content.highlights.map((h, i) => (
                 <div
                   key={i}
@@ -164,6 +240,7 @@ const FlyerPreviewCanvas = ({ content = {}, style = {}, branding = {}, platform 
             borderTop: `1px solid rgba(0,0,0,0.1)`,
             borderBottom: `1px solid rgba(0,0,0,0.1)`,
             flexWrap: "wrap",
+            background: bg,
           }}
         >
           {metaItems.map((m, i) => (
@@ -201,18 +278,21 @@ const FlyerPreviewCanvas = ({ content = {}, style = {}, branding = {}, platform 
 
       <div
         style={{
-          flex: 1,
+          flex: "0 0 auto",
           background: primary,
           borderTop: `${px(4)}px solid ${gold}`,
           display: "flex",
           alignItems: "center",
-          padding: `0 ${px(56)}px`,
+          gap: px(12),
+          padding: `${px(18)}px ${px(48)}px`,
         }}
       >
+        {logoPlacement === "footer" && logoEl}
         <div
           style={{
+            fontFamily: displayFont || "Georgia, serif",
             fontWeight: 800,
-            fontSize: px(style.cta_size || 34),
+            fontSize: px((style.cta_size || 34) * 0.82),
             color: gold,
             textTransform: "uppercase",
           }}
