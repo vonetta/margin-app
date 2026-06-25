@@ -14,6 +14,7 @@ const initialStyle = {
 
 const content = {
   title: "Test Event",
+  subtitle: "A Subtitle",
   description: "A description.",
   theme_tags: ["Tag1"],
 };
@@ -26,6 +27,7 @@ test("accumulates slider changes across every step into the final onComplete pay
       content={content}
       branding={{}}
       platform="Instagram"
+      hasSubtitle
       hasDescription
       hasTags
       onComplete={onComplete}
@@ -79,4 +81,29 @@ test("accumulates slider changes across every step into the final onComplete pay
     speaker_photo_size: 170,
     cta_size: 44,
   });
+});
+
+test("skips the subtitle size step when the event has no subtitle text", () => {
+  render(
+    <FlyerStyleWizard
+      initialStyle={initialStyle}
+      content={{ title: "Test Event" }}
+      branding={{}}
+      platform="Instagram"
+      hasSubtitle={false}
+      hasDescription={false}
+      hasTags={false}
+      onComplete={() => {}}
+      onCancel={() => {}}
+    />,
+  );
+
+  // With no subtitle/description/tags, only title_size and cta_size remain
+  // — a slider that can't change anything visible on the flyer shouldn't
+  // be presented as a step at all.
+  expect(screen.getByText("Step 1 of 2")).toBeInTheDocument();
+  expect(screen.getByText("Title size")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("Next"));
+  expect(screen.getByText("Step 2 of 2")).toBeInTheDocument();
+  expect(screen.getByText("Call-to-action size")).toBeInTheDocument();
 });

@@ -996,6 +996,7 @@ const ContentStudio = () => {
           content={finalEvent}
           branding={ministry?.branding}
           platform={platform}
+          hasSubtitle={!!finalEvent?.subtitle}
           hasDescription={!!finalEvent?.description}
           hasTags={!!finalEvent?.theme_tags?.length}
           onComplete={handleGenerateFlyer}

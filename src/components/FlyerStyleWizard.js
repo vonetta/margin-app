@@ -28,6 +28,7 @@ const FlyerStyleWizard = ({
   content,
   branding,
   platform,
+  hasSubtitle,
   hasDescription,
   hasTags,
   onComplete,
@@ -36,16 +37,18 @@ const FlyerStyleWizard = ({
   const [style, setStyle] = useState(initialStyle);
   const [stepIndex, setStepIndex] = useState(0);
 
-  // Build the step list once: skip description/tags steps entirely when
-  // there's nothing for them to control, since toggling visibility for
-  // content that doesn't exist isn't a meaningful choice.
+  // Build the step list once: skip a step entirely when there's nothing
+  // for it to control — a size slider with no matching text on the flyer
+  // can't show any visible effect, which reads as broken even though it's
+  // working exactly as told.
   const steps = useMemo(() => {
-    const list = ["title_size", "subtitle_size"];
+    const list = ["title_size"];
+    if (hasSubtitle) list.push("subtitle_size");
     if (hasDescription) list.push("description_visible", "description_size");
     if (hasTags) list.push("tags_visible");
     list.push("cta_size");
     return list;
-  }, [hasDescription, hasTags]);
+  }, [hasSubtitle, hasDescription, hasTags]);
 
   const stepKey = steps[stepIndex];
   const field = FIELDS[stepKey];
