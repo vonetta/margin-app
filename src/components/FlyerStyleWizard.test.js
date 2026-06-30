@@ -450,3 +450,73 @@ test("the live preview canvas actually shows the host/speakers picked in Host & 
   expect(screen.getByText("Test Host Person")).toBeInTheDocument();
   expect(screen.getByText("Test Speaker One")).toBeInTheDocument();
 });
+
+test("picking someone as host removes them from the speaker checklist, and they can't be checked there", () => {
+  const onHostChange = jest.fn();
+  const onSpeakersChange = jest.fn();
+  const people = [
+    { _id: "p1", name: "Test Host Person", title: "Apostle" },
+    { _id: "p2", name: "Test Speaker One", title: "Prophet" },
+  ];
+
+  render(
+    <FlyerStyleWizard
+      initialStyle={initialStyle}
+      content={content}
+      branding={branding}
+      platform="Instagram"
+      people={people}
+      hostId=""
+      onHostChange={onHostChange}
+      speakerIds={["p1", "p2"]}
+      onSpeakersChange={onSpeakersChange}
+      hasSubtitle
+      hasDescription
+      hasTags
+      onComplete={() => {}}
+      onCancel={() => {}}
+    />,
+  );
+
+  fireEvent.click(screen.getByText("Host & Speakers"));
+  fireEvent.change(screen.getByRole("combobox"), { target: { value: "p1" } });
+
+  expect(onHostChange).toHaveBeenCalledWith("p1");
+  // p1 was already checked as a speaker — selecting them as host must
+  // un-check that, or they'd show up as both a host card and a speaker
+  // card on the same flyer.
+  expect(onSpeakersChange).toHaveBeenCalledWith(["p2"]);
+});
+
+test("excludes the current host from the speaker checklist options entirely", () => {
+  const people = [
+    { _id: "p1", name: "Test Host Person", title: "Apostle" },
+    { _id: "p2", name: "Test Speaker One", title: "Prophet" },
+  ];
+
+  render(
+    <FlyerStyleWizard
+      initialStyle={initialStyle}
+      content={content}
+      branding={branding}
+      platform="Instagram"
+      people={people}
+      hostId="p1"
+      onHostChange={() => {}}
+      speakerIds={[]}
+      onSpeakersChange={() => {}}
+      hasSubtitle
+      hasDescription
+      hasTags
+      onComplete={() => {}}
+      onCancel={() => {}}
+    />,
+  );
+
+  fireEvent.click(screen.getByText("Host & Speakers"));
+  // The host dropdown shows them once and the live preview shows their
+  // name once (as the host) — but they must not also appear as a
+  // checkable row in the speaker checklist underneath.
+  expect(screen.getAllByText(/Test Host Person/).length).toBe(2);
+  expect(screen.getAllByText(/Test Speaker One/).length).toBeGreaterThan(0);
+});

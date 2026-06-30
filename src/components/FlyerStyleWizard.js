@@ -336,7 +336,17 @@ const FlyerStyleWizard = ({
                     <div style={{ fontSize: "12px", color: "var(--gray-600)", marginBottom: "6px" }}>Host</div>
                     <select
                       value={hostId}
-                      onChange={(e) => onHostChange?.(e.target.value)}
+                      onChange={(e) => {
+                        const newHostId = e.target.value;
+                        onHostChange?.(newHostId);
+                        // The same person showing up as both the host and a
+                        // speaker card looks like a duplicate-data bug, not
+                        // a deliberate choice — picking someone as host
+                        // un-checks them as a speaker automatically.
+                        if (newHostId && speakerIds.includes(newHostId)) {
+                          onSpeakersChange?.(speakerIds.filter((id) => id !== newHostId));
+                        }
+                      }}
                       style={{
                         width: "100%",
                         padding: "9px 12px",
@@ -357,7 +367,7 @@ const FlyerStyleWizard = ({
 
                     <div style={{ fontSize: "12px", color: "var(--gray-600)", marginBottom: "6px" }}>Speakers</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px", maxHeight: "180px", overflow: "auto" }}>
-                      {people.map((p) => {
+                      {people.filter((p) => p._id !== hostId).map((p) => {
                         const checked = speakerIds.includes(p._id);
                         return (
                           <div

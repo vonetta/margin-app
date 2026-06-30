@@ -162,7 +162,7 @@ const FlyerGenerator = () => {
   const handleRegenerateBackground = () => handleGenerate();
 
   const hostCandidates = people.filter((p) => p.role !== "speaker" || p._id === hostId);
-  const speakerCandidates = people;
+  const speakerCandidates = people.filter((p) => p._id !== hostId);
 
   return (
     <div style={{ padding: "32px", flex: 1, overflow: "auto" }}>
@@ -293,7 +293,16 @@ const FlyerGenerator = () => {
                   <select
                     style={inputStyle}
                     value={hostId}
-                    onChange={(e) => setHostId(e.target.value)}
+                    onChange={(e) => {
+                      const newHostId = e.target.value;
+                      setHostId(newHostId);
+                      // Showing the same person as both the host and a
+                      // speaker card reads as a duplicate-data bug, not a
+                      // deliberate choice.
+                      if (newHostId) {
+                        setSpeakerIds((prev) => prev.filter((id) => id !== newHostId));
+                      }
+                    }}
                   >
                     <option value="">No host</option>
                     {hostCandidates.map((p) => (
