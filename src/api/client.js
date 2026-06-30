@@ -11,7 +11,10 @@ client.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  if (ministryId) {
+  // A caller can pass its own x-ministry-id (e.g. the Calendar page
+  // fetching events across several ministry memberships at once) —
+  // only fall back to the active ministry when nothing was set.
+  if (ministryId && !config.headers["x-ministry-id"]) {
     config.headers["x-ministry-id"] = ministryId;
   }
 

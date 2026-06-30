@@ -9,8 +9,9 @@ jest.mock("../api/client", () => ({
 }));
 const client = require("../api/client");
 
+const mockUseAuth = jest.fn();
 jest.mock("../context/AuthContext", () => ({
-  useAuth: () => ({ ministryId: "ktm-test" }),
+  useAuth: () => mockUseAuth(),
 }));
 
 beforeEach(() => {
@@ -18,6 +19,13 @@ beforeEach(() => {
   client.post.mockReset();
   client.put.mockReset();
   client.delete.mockReset();
+  mockUseAuth.mockReset();
+  mockUseAuth.mockReturnValue({
+    ministryId: "ktm-test",
+    user: {
+      ministries: [{ ministry_id: "ktm-test", role: "admin", name: "KTM Test", color: "#03293F" }],
+    },
+  });
   client.get.mockImplementation((url) => {
     if (url === "/api/events/expanded") return Promise.resolve({ data: [] });
     if (url === "/api/events") return Promise.resolve({ data: [] });
@@ -77,6 +85,7 @@ test("approving a pending event from the queue calls the approve endpoint", asyn
             title: "Worship Intensive",
             start: "2026-08-15T17:00:00Z",
             source: "flyer",
+            ministry_id: "ktm-test",
           },
         ],
       });
@@ -91,7 +100,13 @@ test("approving a pending event from the queue calls the approve endpoint", asyn
 
   fireEvent.click(await screen.findByText("Approve"));
 
-  await waitFor(() => expect(client.put).toHaveBeenCalledWith("/api/events/evt-pending/approve"));
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/events/evt-pending/approve",
+      null,
+      expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
+    ),
+  );
 });
 
 test("restricting an internal event to specific team members sends their ids as visible_to", async () => {
@@ -119,6 +134,42 @@ test("restricting an internal event to specific team members sends their ids as 
       }),
     ),
   );
+});
+
+test("aggregates events from every ministry membership, one request per ministry", async () => {
+  mockUseAuth.mockReturnValue({
+    ministryId: "ktm-test",
+    user: {
+      ministries: [
+        { ministry_id: "ktm-test", role: "admin", name: "KTM Test", color: "#03293F" },
+        { ministry_id: "salt-light-test", role: "admin", name: "Salt & Light", color: "#7a3b3b" },
+      ],
+    },
+  });
+  client.get.mockImplementation((url, opts) => {
+    if (url === "/api/events/expanded") {
+      const mId = opts?.headers?.["x-ministry-id"];
+      if (mId === "ktm-test") {
+        return Promise.resolve({
+          data: [{ _id: "e1", title: "KTM Event", occurrence_start: "2026-06-15T18:00:00Z", status: "approved" }],
+        });
+      }
+      if (mId === "salt-light-test") {
+        return Promise.resolve({
+          data: [{ _id: "e2", title: "Salt & Light Event", occurrence_start: "2026-06-16T18:00:00Z", status: "approved" }],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    }
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<Calendar />);
+
+  expect(await screen.findByText("KTM Test")).toBeInTheDocument();
+  expect(await screen.findByText("Salt & Light")).toBeInTheDocument();
+  expect(await screen.findByText("KTM Event")).toBeInTheDocument();
+  expect(await screen.findByText("Salt & Light Event")).toBeInTheDocument();
 });
 
 test("website tab shows the public ICS feed URL for the active ministry", async () => {

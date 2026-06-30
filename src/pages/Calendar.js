@@ -77,8 +77,20 @@ const startOfCalendarGrid = (monthDate) => {
   return gridStart;
 };
 
+const FALLBACK_COLOR = "#4a5a6a";
+
 const Calendar = () => {
-  const { ministryId } = useAuth();
+  const { user, ministryId } = useAuth();
+  const memberships = useMemo(() => user?.ministries || [], [user]);
+  const colorFor = useCallback(
+    (mId) => memberships.find((m) => m.ministry_id === mId)?.color || FALLBACK_COLOR,
+    [memberships],
+  );
+  const nameFor = useCallback(
+    (mId) => memberships.find((m) => m.ministry_id === mId)?.name || mId,
+    [memberships],
+  );
+
   const [tab, setTab] = useState("calendar");
   const [monthDate, setMonthDate] = useState(new Date());
   const [occurrences, setOccurrences] = useState([]);
@@ -104,31 +116,56 @@ const Calendar = () => {
     [gridStart],
   );
 
+  // The calendar is global across every ministry the user belongs to
+  // (parent + any sub-ministries), not just the currently active one —
+  // each request is fired with that ministry's own x-ministry-id so it
+  // still goes through normal tenant/membership checks, just once per
+  // membership instead of once overall.
   const fetchOccurrences = useCallback(async () => {
+    if (memberships.length === 0) return;
     setLoading(true);
     try {
       const from = new Date(gridDays[0]);
       const to = new Date(gridDays[41]);
       to.setHours(23, 59, 59, 999);
-      const res = await client.get("/api/events/expanded", {
-        params: { from: from.toISOString(), to: to.toISOString() },
-      });
-      setOccurrences(res.data);
+      const results = await Promise.all(
+        memberships.map((m) =>
+          client
+            .get("/api/events/expanded", {
+              params: { from: from.toISOString(), to: to.toISOString() },
+              headers: { "x-ministry-id": m.ministry_id },
+            })
+            .then((res) => res.data.map((occ) => ({ ...occ, ministry_id: m.ministry_id })))
+            .catch(() => []),
+        ),
+      );
+      setOccurrences(results.flat());
     } catch (err) {
       setError("Failed to load calendar events");
     } finally {
       setLoading(false);
     }
-  }, [gridDays]);
+  }, [gridDays, memberships]);
 
   const fetchPending = useCallback(async () => {
+    if (memberships.length === 0) return;
     try {
-      const res = await client.get("/api/events", { params: { status: "pending" } });
-      setPending(res.data);
+      const results = await Promise.all(
+        memberships.map((m) =>
+          client
+            .get("/api/events", {
+              params: { status: "pending" },
+              headers: { "x-ministry-id": m.ministry_id },
+            })
+            .then((res) => res.data.map((e) => ({ ...e, ministry_id: m.ministry_id })))
+            .catch(() => []),
+        ),
+      );
+      setPending(results.flat());
     } catch (err) {
       // non-fatal
     }
-  }, []);
+  }, [memberships]);
 
   useEffect(() => {
     fetchOccurrences();
@@ -204,9 +241,9 @@ const Calendar = () => {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id, mId) => {
     try {
-      await client.delete(`/api/events/${id}`);
+      await client.delete(`/api/events/${id}`, { headers: { "x-ministry-id": mId } });
       await fetchOccurrences();
       setSelectedDay(null);
     } catch (err) {
@@ -214,18 +251,18 @@ const Calendar = () => {
     }
   };
 
-  const handleApprove = async (id) => {
+  const handleApprove = async (id, mId) => {
     try {
-      await client.put(`/api/events/${id}/approve`);
+      await client.put(`/api/events/${id}/approve`, null, { headers: { "x-ministry-id": mId } });
       await Promise.all([fetchPending(), fetchOccurrences()]);
     } catch (err) {
       setError("Failed to approve event");
     }
   };
 
-  const handleReject = async (id) => {
+  const handleReject = async (id, mId) => {
     try {
-      await client.put(`/api/events/${id}/reject`);
+      await client.put(`/api/events/${id}/reject`, null, { headers: { "x-ministry-id": mId } });
       await fetchPending();
     } catch (err) {
       setError("Failed to reject event");
@@ -273,7 +310,7 @@ const Calendar = () => {
             Calendar
           </h2>
           <p style={{ fontSize: "12px", color: "var(--gray-600)" }}>
-            Prayer calls, meetings, and ministry events in one place
+            Prayer calls, meetings, and events across every ministry you're part of
           </p>
         </div>
         <button
@@ -347,6 +384,13 @@ const Calendar = () => {
             gap: "12px",
           }}
         >
+          {memberships.length > 1 && (
+            <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>
+              Creating in:{" "}
+              <span style={{ fontWeight: "600", color: colorFor(ministryId) }}>{nameFor(ministryId)}</span>
+              {" — switch ministries from the sidebar to add an event to a different one"}
+            </div>
+          )}
           <div style={{ display: "flex", gap: "8px" }}>
             <input
               type="text"
@@ -672,6 +716,25 @@ const Calendar = () => {
               </button>
             </div>
 
+            {memberships.length > 1 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "12px" }}>
+                {memberships.map((m) => (
+                  <div key={m.ministry_id} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                    <span
+                      style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "2px",
+                        background: m.color || FALLBACK_COLOR,
+                        display: "inline-block",
+                      }}
+                    />
+                    <span style={{ fontSize: "10px", color: "var(--gray-600)" }}>{m.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "1px", fontSize: "10px", color: "var(--gray-500)", marginBottom: "4px" }}>
               {WEEKDAYS.map((d) => (
                 <div key={d.value} style={{ textAlign: "center", padding: "4px" }}>
@@ -704,13 +767,15 @@ const Calendar = () => {
                     {dayEvents.slice(0, 2).map((occ, j) => (
                       <div
                         key={j}
+                        title={nameFor(occ.ministry_id)}
                         style={{
                           fontSize: "9px",
                           padding: "1px 4px",
                           marginBottom: "1px",
                           borderRadius: "3px",
-                          background: occ.visibility === "public" ? "#e8f4ea" : "#eef2f8",
-                          color: occ.visibility === "public" ? "#3a7a4a" : "var(--navy)",
+                          borderLeft: `2px solid ${colorFor(occ.ministry_id)}`,
+                          background: `${colorFor(occ.ministry_id)}1a`,
+                          color: colorFor(occ.ministry_id),
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -746,7 +811,21 @@ const Calendar = () => {
                 <div style={{ fontSize: "12px", color: "var(--gray-400)" }}>No events</div>
               )}
               {selectedDayEvents.map((occ) => (
-                <div key={`${occ._id}-${occ.occurrence_start}`} style={{ marginBottom: "12px", paddingBottom: "12px", borderBottom: "0.5px solid var(--gray-200)" }}>
+                <div
+                  key={`${occ._id}-${occ.occurrence_start}`}
+                  style={{
+                    marginBottom: "12px",
+                    paddingBottom: "12px",
+                    paddingLeft: "8px",
+                    borderLeft: `2px solid ${colorFor(occ.ministry_id)}`,
+                    borderBottom: "0.5px solid var(--gray-200)",
+                  }}
+                >
+                  {memberships.length > 1 && (
+                    <div style={{ fontSize: "9px", color: colorFor(occ.ministry_id), fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
+                      {nameFor(occ.ministry_id)}
+                    </div>
+                  )}
                   <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--charcoal)" }}>{occ.title}</div>
                   <div style={{ fontSize: "11px", color: "var(--gray-500)", marginTop: "2px" }}>
                     {occ.all_day
@@ -760,7 +839,7 @@ const Calendar = () => {
                   </div>
                   {occ.location && <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>{occ.location}</div>}
                   <button
-                    onClick={() => handleDelete(occ._id)}
+                    onClick={() => handleDelete(occ._id, occ.ministry_id)}
                     style={{
                       marginTop: "6px",
                       padding: "3px 8px",
@@ -804,6 +883,7 @@ const Calendar = () => {
               style={{
                 background: "var(--white)",
                 border: "0.5px solid var(--gray-300)",
+                borderLeft: `3px solid ${colorFor(event.ministry_id)}`,
                 borderRadius: "var(--border-radius-lg)",
                 padding: "14px",
                 display: "flex",
@@ -812,6 +892,11 @@ const Calendar = () => {
               }}
             >
               <div>
+                {memberships.length > 1 && (
+                  <div style={{ fontSize: "9px", color: colorFor(event.ministry_id), fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
+                    {nameFor(event.ministry_id)}
+                  </div>
+                )}
                 <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--charcoal)" }}>{event.title}</div>
                 <div style={{ fontSize: "11px", color: "var(--gray-500)", marginTop: "2px" }}>
                   {new Date(event.start).toLocaleString(undefined, {
@@ -826,7 +911,7 @@ const Calendar = () => {
               </div>
               <div style={{ display: "flex", gap: "6px" }}>
                 <button
-                  onClick={() => handleApprove(event._id)}
+                  onClick={() => handleApprove(event._id, event.ministry_id)}
                   style={{
                     padding: "6px 12px",
                     background: "var(--navy)",
@@ -840,7 +925,7 @@ const Calendar = () => {
                   Approve
                 </button>
                 <button
-                  onClick={() => handleReject(event._id)}
+                  onClick={() => handleReject(event._id, event.ministry_id)}
                   style={{
                     padding: "6px 12px",
                     background: "transparent",
