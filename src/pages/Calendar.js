@@ -104,6 +104,7 @@ const Calendar = () => {
   const [selectedDay, setSelectedDay] = useState(null);
   const [team, setTeam] = useState([]);
   const [visibleTo, setVisibleTo] = useState([]);
+  const [tasks, setTasks] = useState([]);
 
   const gridStart = useMemo(() => startOfCalendarGrid(monthDate), [monthDate]);
   const gridDays = useMemo(
@@ -167,6 +168,29 @@ const Calendar = () => {
     }
   }, [memberships]);
 
+  // Tasks assigned to you with a due date show up on the day they're due,
+  // the same way events do — only open ones, so the calendar doesn't fill
+  // up with things you've already finished.
+  const fetchTasks = useCallback(async () => {
+    if (memberships.length === 0) return;
+    try {
+      const results = await Promise.all(
+        memberships.map((m) =>
+          client
+            .get("/api/tasks", {
+              params: { status: "open" },
+              headers: { "x-ministry-id": m.ministry_id },
+            })
+            .then((res) => res.data.map((t) => ({ ...t, ministry_id: m.ministry_id })))
+            .catch(() => []),
+        ),
+      );
+      setTasks(results.flat().filter((t) => t.due_date));
+    } catch (err) {
+      // non-fatal
+    }
+  }, [memberships]);
+
   useEffect(() => {
     fetchOccurrences();
   }, [fetchOccurrences]);
@@ -174,6 +198,10 @@ const Calendar = () => {
   useEffect(() => {
     fetchPending();
   }, [fetchPending]);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
 
   useEffect(() => {
     client
@@ -192,6 +220,27 @@ const Calendar = () => {
     }
     return map;
   }, [occurrences]);
+
+  const tasksByDay = useMemo(() => {
+    const map = {};
+    for (const t of tasks) {
+      const key = new Date(t.due_date).toDateString();
+      if (!map[key]) map[key] = [];
+      map[key].push(t);
+    }
+    return map;
+  }, [tasks]);
+
+  const handleCompleteTask = async (task) => {
+    try {
+      await client.put(`/api/tasks/${task._id}/complete`, null, {
+        headers: { "x-ministry-id": task.ministry_id },
+      });
+      await fetchTasks();
+    } catch (err) {
+      setError("Failed to complete task");
+    }
+  };
 
   const resetForm = () => {
     setForm(emptyForm);
@@ -285,6 +334,7 @@ const Calendar = () => {
   };
 
   const selectedDayEvents = selectedDay ? occurrencesByDay[selectedDay.toDateString()] || [] : [];
+  const selectedDayTasks = selectedDay ? tasksByDay[selectedDay.toDateString()] || [] : [];
 
   return (
     <div style={{ padding: "32px", flex: 1, overflow: "auto" }}>
@@ -747,6 +797,11 @@ const Calendar = () => {
               {gridDays.map((day, i) => {
                 const inMonth = day.getMonth() === monthDate.getMonth();
                 const dayEvents = occurrencesByDay[day.toDateString()] || [];
+                const dayTasks = tasksByDay[day.toDateString()] || [];
+                const dayItems = [
+                  ...dayEvents.map((occ) => ({ ...occ, _kind: "event" })),
+                  ...dayTasks.map((t) => ({ ...t, _kind: "task" })),
+                ];
                 const isSelected = selectedDay && selectedDay.toDateString() === day.toDateString();
                 return (
                   <div
@@ -764,28 +819,30 @@ const Calendar = () => {
                     <div style={{ fontSize: "10px", color: "var(--gray-500)", marginBottom: "2px" }}>
                       {day.getDate()}
                     </div>
-                    {dayEvents.slice(0, 2).map((occ, j) => (
+                    {dayItems.slice(0, 2).map((item, j) => (
                       <div
                         key={j}
-                        title={nameFor(occ.ministry_id)}
+                        title={nameFor(item.ministry_id)}
                         style={{
                           fontSize: "9px",
                           padding: "1px 4px",
                           marginBottom: "1px",
                           borderRadius: "3px",
-                          borderLeft: `2px solid ${colorFor(occ.ministry_id)}`,
-                          background: `${colorFor(occ.ministry_id)}1a`,
-                          color: colorFor(occ.ministry_id),
+                          border: item._kind === "task" ? `1px dashed ${colorFor(item.ministry_id)}` : "none",
+                          borderLeft: item._kind === "task" ? undefined : `2px solid ${colorFor(item.ministry_id)}`,
+                          background: `${colorFor(item.ministry_id)}1a`,
+                          color: colorFor(item.ministry_id),
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                         }}
                       >
-                        {occ.title}
+                        {item._kind === "task" ? "☐ " : ""}
+                        {item.title}
                       </div>
                     ))}
-                    {dayEvents.length > 2 && (
-                      <div style={{ fontSize: "9px", color: "var(--gray-400)" }}>+{dayEvents.length - 2} more</div>
+                    {dayItems.length > 2 && (
+                      <div style={{ fontSize: "9px", color: "var(--gray-400)" }}>+{dayItems.length - 2} more</div>
                     )}
                   </div>
                 );
@@ -807,8 +864,8 @@ const Calendar = () => {
               <div style={{ fontFamily: "Cinzel, serif", fontSize: "12px", color: "var(--navy)", marginBottom: "12px" }}>
                 {selectedDay.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
               </div>
-              {selectedDayEvents.length === 0 && (
-                <div style={{ fontSize: "12px", color: "var(--gray-400)" }}>No events</div>
+              {selectedDayEvents.length === 0 && selectedDayTasks.length === 0 && (
+                <div style={{ fontSize: "12px", color: "var(--gray-400)" }}>Nothing on this day</div>
               )}
               {selectedDayEvents.map((occ) => (
                 <div
@@ -852,6 +909,41 @@ const Calendar = () => {
                     }}
                   >
                     Delete
+                  </button>
+                </div>
+              ))}
+              {selectedDayTasks.map((task) => (
+                <div
+                  key={task._id}
+                  style={{
+                    marginBottom: "10px",
+                    paddingBottom: "10px",
+                    paddingLeft: "8px",
+                    borderLeft: `2px dashed ${colorFor(task.ministry_id)}`,
+                    borderBottom: "0.5px solid var(--gray-200)",
+                  }}
+                >
+                  {memberships.length > 1 && (
+                    <div style={{ fontSize: "9px", color: colorFor(task.ministry_id), fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
+                      {nameFor(task.ministry_id)}
+                    </div>
+                  )}
+                  <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--charcoal)" }}>☐ {task.title}</div>
+                  <div style={{ fontSize: "11px", color: "var(--gray-500)", marginTop: "2px" }}>Task due</div>
+                  <button
+                    onClick={() => handleCompleteTask(task)}
+                    style={{
+                      marginTop: "6px",
+                      padding: "3px 8px",
+                      background: "var(--navy)",
+                      border: "none",
+                      color: "var(--white)",
+                      borderRadius: "var(--border-radius)",
+                      fontSize: "10px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ✓ Done
                   </button>
                 </div>
               ))}

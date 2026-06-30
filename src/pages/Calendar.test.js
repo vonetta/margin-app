@@ -172,6 +172,45 @@ test("aggregates events from every ministry membership, one request per ministry
   expect(await screen.findByText("Salt & Light Event")).toBeInTheDocument();
 });
 
+test("shows a task due today on the calendar grid and lets you mark it done from there", async () => {
+  const today = new Date();
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "task1",
+            title: "Confirm worship setlist",
+            status: "open",
+            due_date: today.toISOString(),
+            ministry_id: "ktm-test",
+          },
+        ],
+      });
+    }
+    if (url === "/api/events/expanded") return Promise.resolve({ data: [] });
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<Calendar />);
+
+  const chip = await screen.findByText(/☐ Confirm worship setlist/);
+  expect(chip).toBeInTheDocument();
+
+  fireEvent.click(chip.closest("div[style*='cursor: pointer']") || chip.parentElement.parentElement);
+
+  fireEvent.click(await screen.findByText("✓ Done"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/tasks/task1/complete",
+      null,
+      expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
+    ),
+  );
+});
+
 test("website tab shows the public ICS feed URL for the active ministry", async () => {
   render(<Calendar />);
   fireEvent.click(screen.getByText("Website"));
