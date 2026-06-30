@@ -128,6 +128,11 @@ const FlyerStyleWizard = ({
     return "monument";
   }, [selectedLayout, people, hostId, speakerIds]);
 
+  // So the live preview actually shows who got picked in Host & Speakers,
+  // not just affect which layout auto-suggest resolves to.
+  const resolvedHost = people.find((p) => p._id === hostId) || null;
+  const resolvedSpeakers = people.filter((p) => speakerIds.includes(p._id));
+
   const sizeSteps = useMemo(() => {
     const list = ["title_size"];
     if (hasSubtitle) list.push("subtitle_size");
@@ -222,6 +227,8 @@ const FlyerStyleWizard = ({
           platform={platform}
           backgroundImageUrl={backgroundUrl}
           layout={resolvedLayout}
+          host={resolvedHost}
+          speakers={resolvedSpeakers}
         />
 
         <div

@@ -423,3 +423,30 @@ test("the live preview canvas actually reflects the selectedLayout prop, not alw
   rerender(<FlyerStyleWizard {...props} selectedLayout="canvas" />);
   expect(screen.getByText("Save the Date")).toBeInTheDocument();
 });
+
+test("the live preview canvas actually shows the host/speakers picked in Host & Speakers", () => {
+  const people = [
+    { _id: "p1", name: "Test Host Person", title: "Apostle" },
+    { _id: "p2", name: "Test Speaker One", title: "Prophet" },
+  ];
+
+  const props = {
+    initialStyle,
+    content,
+    branding,
+    platform: "Instagram",
+    people,
+    hasSubtitle: true,
+    hasDescription: true,
+    hasTags: true,
+    onComplete: () => {},
+    onCancel: () => {},
+  };
+
+  const { rerender } = render(<FlyerStyleWizard {...props} hostId="" speakerIds={[]} />);
+  expect(screen.queryByText("Test Host Person")).not.toBeInTheDocument();
+
+  rerender(<FlyerStyleWizard {...props} hostId="p1" speakerIds={["p2"]} />);
+  expect(screen.getByText("Test Host Person")).toBeInTheDocument();
+  expect(screen.getByText("Test Speaker One")).toBeInTheDocument();
+});

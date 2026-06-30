@@ -34,6 +34,8 @@ const useGoogleFont = (fontName) => {
   }, [fontName]);
 };
 
+const initials = (name = "") => (name.trim().charAt(0) || "?").toUpperCase();
+
 const FlyerPreviewCanvas = ({
   content = {},
   style = {},
@@ -41,6 +43,8 @@ const FlyerPreviewCanvas = ({
   platform = null,
   backgroundImageUrl = null,
   layout = "monument",
+  host = null,
+  speakers = [],
 }) => {
   const baseColors = branding.colors || {};
   const variants = deriveColorVariants({
@@ -168,6 +172,42 @@ const FlyerPreviewCanvas = ({
       </div>
     );
 
+  const personCircle = (person, size, { ribbon } = {}) => {
+    const img = person.cutout_url || person.headshot_url;
+    return (
+      <div style={{ textAlign: "center" }}>
+        <div
+          style={{
+            width: px(size),
+            height: px(size),
+            borderRadius: "50%",
+            border: `${px(3)}px solid #fff`,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+            background: img ? `url(${img})` : `${gold}4d`,
+            backgroundSize: "cover",
+            backgroundPosition: "center top",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#fff",
+            fontWeight: 700,
+            fontSize: px(size * 0.3),
+            fontFamily: displayFont || "Georgia, serif",
+            margin: "0 auto",
+          }}
+        >
+          {!img && initials(person.name)}
+        </div>
+        {ribbon && (
+          <div style={{ fontSize: px(10), fontWeight: 700, letterSpacing: "0.06em", color: gold, marginTop: px(4), textTransform: "uppercase" }}>
+            {ribbon}
+          </div>
+        )}
+        <div style={{ fontSize: px(13), fontWeight: 700, marginTop: px(2), color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}>{person.name}</div>
+      </div>
+    );
+  };
+
   // --- Monument: cream content column fading into a photo/gradient zone ---
   if (layout === "monument") {
     const metaItems = [
@@ -212,6 +252,11 @@ const FlyerPreviewCanvas = ({
           {logoPlacement === "photo-corner" && logoEl && (
             <div style={{ position: "absolute", top: px(20), right: px(20), zIndex: 3 }}>{logoEl}</div>
           )}
+          {host && (
+            <div style={{ position: "absolute", top: "50%", right: "8%", transform: "translateY(-50%)", zIndex: 2 }}>
+              {personCircle(host, style.host_photo_size || 230, { ribbon: "HOST" })}
+            </div>
+          )}
           <div style={{ position: "relative", zIndex: 2, width: "50%", padding: `${px(48)}px` }}>
             {(logoPlacement === "top-left" || logoPlacement === "top-center") && logoEl && (
               <div style={{ textAlign: logoPlacement === "top-center" ? "center" : "left", marginBottom: px(16) }}>
@@ -238,6 +283,13 @@ const FlyerPreviewCanvas = ({
             )}
           </div>
         </div>
+        {speakers.length > 0 && (
+          <div style={{ display: "flex", justifyContent: "center", gap: px(20), padding: `${px(16)}px 0`, background: bg, flexWrap: "wrap" }}>
+            {speakers.map((sp, i) => (
+              <div key={i}>{personCircle(sp, style.speaker_photo_size || 170)}</div>
+            ))}
+          </div>
+        )}
         {metaItems.length > 0 && (
           <div style={{ display: "flex", justifyContent: "center", gap: px(20), padding: `${px(14)}px 0`, borderTop: "1px solid rgba(0,0,0,0.1)", borderBottom: "1px solid rgba(0,0,0,0.1)", flexWrap: "wrap", background: bg }}>
             {metaItems.map((m, i) => (
@@ -261,9 +313,12 @@ const FlyerPreviewCanvas = ({
 
   // --- Feature: dark scrim over a hero photo/gradient, text on the left ---
   if (layout === "feature") {
-    const bgLayer = backgroundImageUrl
-      ? { backgroundImage: `url(${backgroundImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
-      : { background: brandGradientCss };
+    const hostImg = host && (host.cutout_url || host.headshot_url);
+    const bgLayer = hostImg
+      ? { backgroundImage: `url(${hostImg})`, backgroundSize: "cover", backgroundPosition: "center top" }
+      : backgroundImageUrl
+        ? { backgroundImage: `url(${backgroundImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
+        : { background: brandGradientCss };
     return (
       <div style={{ ...wrapStyle, ...bgLayer }}>
         <div style={{ position: "absolute", inset: 0, background: `linear-gradient(90deg, ${primary} 30%, ${primary}88 55%, transparent 75%)` }} />
@@ -277,6 +332,16 @@ const FlyerPreviewCanvas = ({
           )}
           {tagRow("#fff")}
           {descBlock("rgba(255,255,255,0.85)")}
+          {host && (
+            <div style={{ marginTop: px(20) }}>
+              <div style={{ fontSize: px(11), fontWeight: 700, letterSpacing: "0.06em", color: gold, textTransform: "uppercase" }}>
+                {host.title ? "Featured Speaker" : "Host"}
+              </div>
+              <div style={{ fontFamily: displayFont || "Georgia, serif", fontSize: px(28), fontWeight: 700, color: "#fff", marginTop: px(2) }}>
+                {host.name}
+              </div>
+            </div>
+          )}
           <div style={{ marginTop: "auto", display: "flex", alignItems: "flex-end" }}>
             <div style={{ ...ctaStyle(gold), background: "rgba(0,0,0,0.4)", padding: `${px(8)}px ${px(14)}px`, borderRadius: px(6) }}>
               {content.cta || "Call to action"}
@@ -347,6 +412,16 @@ const FlyerPreviewCanvas = ({
         )}
         {tagRow("#fff")}
         {descBlock("rgba(255,255,255,0.88)")}
+        {(host || speakers.length > 0) && (
+          <div style={{ display: "flex", justifyContent: "center", gap: px(20), flexWrap: "wrap", marginTop: px(20) }}>
+            {host && <div style={{ color: "#fff" }}>{personCircle(host, 110, { ribbon: "HOST" })}</div>}
+            {speakers.map((sp, i) => (
+              <div key={i} style={{ color: "#fff" }}>
+                {personCircle(sp, 110, { ribbon: "SPEAKER" })}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div style={{ flex: "0 0 auto", background: primary, borderTop: `${px(4)}px solid ${gold}`, padding: `${px(16)}px ${px(40)}px`, textAlign: "center" }}>
         <div style={ctaStyle(gold)}>{content.cta || "Call to action"}</div>
