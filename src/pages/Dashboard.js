@@ -84,10 +84,9 @@ const Dashboard = () => {
             path: "/communications",
           },
           {
-            label: "Events",
-            desc: "Manage ministry events",
-            path: "/events",
-            comingSoon: true,
+            label: "Calendar",
+            desc: "Prayer calls, meetings, and upcoming events",
+            path: "/calendar",
           },
         ].map((card) => (
           <div
