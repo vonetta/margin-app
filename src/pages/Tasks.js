@@ -4,11 +4,35 @@ import { useAuth } from "../context/AuthContext";
 
 const FALLBACK_COLOR = "#4a5a6a";
 
+const REPEAT_FREQUENCIES = [
+  { value: "", label: "Does not repeat" },
+  { value: "DAILY", label: "Daily" },
+  { value: "WEEKLY", label: "Weekly" },
+  { value: "MONTHLY", label: "Monthly" },
+];
+
 const emptyForm = {
   title: "",
   description: "",
   dueDate: "",
   assignedTo: "",
+  repeatFreq: "",
+  repeatInterval: 1,
+};
+
+const buildTaskRecurrenceRule = (freq, interval) => {
+  if (!freq) return null;
+  const parts = [`FREQ=${freq}`];
+  if (interval && interval > 1) parts.push(`INTERVAL=${interval}`);
+  return parts.join(";");
+};
+
+const describeRecurrence = (rule) => {
+  if (!rule) return null;
+  if (rule.includes("FREQ=DAILY")) return "↻ Daily";
+  if (rule.includes("FREQ=WEEKLY")) return "↻ Weekly";
+  if (rule.includes("FREQ=MONTHLY")) return "↻ Monthly";
+  return "↻ Recurring";
 };
 
 const formatDue = (dateStr) => {
@@ -123,6 +147,10 @@ const Tasks = () => {
       setError("Title and an assignee are required");
       return;
     }
+    if (form.repeatFreq && !form.dueDate) {
+      setError("A recurring task needs a due date to anchor the recurrence");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -131,6 +159,7 @@ const Tasks = () => {
         description: form.description.trim() || undefined,
         due_date: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
         assigned_to: form.assignedTo,
+        recurrence_rule: buildTaskRecurrenceRule(form.repeatFreq, form.repeatInterval) || undefined,
       });
       resetForm();
       await Promise.all([refreshMine(), refreshAssignedByMe()]);
@@ -220,8 +249,9 @@ const Tasks = () => {
                 Due {due.label}
               </span>
             )}
+            {task.recurrence_rule && <span>{due ? " · " : ""}{describeRecurrence(task.recurrence_rule)}</span>}
             {showAssignee && (
-              <span>{due ? " · " : ""}{team.find((m) => m._id === task.assigned_to)?.name || "Someone"}</span>
+              <span>{due || task.recurrence_rule ? " · " : ""}{team.find((m) => m._id === task.assigned_to)?.name || "Someone"}</span>
             )}
           </div>
         </div>
@@ -429,6 +459,45 @@ const Tasks = () => {
                 fontSize: "13px",
               }}
             />
+          </div>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <select
+              value={form.repeatFreq}
+              onChange={(e) => setForm({ ...form, repeatFreq: e.target.value })}
+              style={{
+                padding: "6px 10px",
+                border: "0.5px solid var(--gray-300)",
+                borderRadius: "var(--border-radius)",
+                fontSize: "12px",
+              }}
+            >
+              {REPEAT_FREQUENCIES.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+            {form.repeatFreq && (
+              <>
+                <span style={{ fontSize: "11px", color: "var(--gray-500)" }}>every</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={form.repeatInterval}
+                  onChange={(e) => setForm({ ...form, repeatInterval: Number(e.target.value) || 1 })}
+                  style={{
+                    width: "50px",
+                    padding: "6px 8px",
+                    border: "0.5px solid var(--gray-300)",
+                    borderRadius: "var(--border-radius)",
+                    fontSize: "12px",
+                  }}
+                />
+                <span style={{ fontSize: "11px", color: "var(--gray-500)" }}>
+                  {form.repeatFreq === "DAILY" ? "day(s)" : form.repeatFreq === "WEEKLY" ? "week(s)" : "month(s)"}
+                </span>
+              </>
+            )}
           </div>
           <div>
             <button

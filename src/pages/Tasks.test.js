@@ -92,6 +92,79 @@ test("marking a task complete calls the complete endpoint with the right ministr
   );
 });
 
+test("setting a weekly repeat sends the recurrence_rule", async () => {
+  client.post.mockResolvedValue({ data: { _id: "t1" } });
+  render(<Tasks />);
+
+  fireEvent.click(screen.getByText("+ New task"));
+  fireEvent.change(screen.getByPlaceholderText("Task title"), {
+    target: { value: "Submit the bulletin" },
+  });
+  fireEvent.change(await screen.findByDisplayValue("Assign to..."), {
+    target: { value: "u2" },
+  });
+  fireEvent.change(document.querySelector('input[type="date"]'), {
+    target: { value: "2026-07-01" },
+  });
+  fireEvent.change(screen.getByText("Does not repeat").closest("select"), {
+    target: { value: "WEEKLY" },
+  });
+
+  fireEvent.click(screen.getByText("Assign task"));
+
+  await waitFor(() =>
+    expect(client.post).toHaveBeenCalledWith(
+      "/api/tasks",
+      expect.objectContaining({
+        title: "Submit the bulletin",
+        recurrence_rule: "FREQ=WEEKLY",
+      }),
+    ),
+  );
+});
+
+test("blocks creating a recurring task with no due date", async () => {
+  render(<Tasks />);
+
+  fireEvent.click(screen.getByText("+ New task"));
+  fireEvent.change(screen.getByPlaceholderText("Task title"), {
+    target: { value: "Submit the bulletin" },
+  });
+  fireEvent.change(await screen.findByDisplayValue("Assign to..."), {
+    target: { value: "u2" },
+  });
+  fireEvent.change(screen.getByText("Does not repeat").closest("select"), {
+    target: { value: "WEEKLY" },
+  });
+
+  fireEvent.click(screen.getByText("Assign task"));
+
+  expect(await screen.findByText(/needs a due date/)).toBeInTheDocument();
+  expect(client.post).not.toHaveBeenCalled();
+});
+
+test("shows a recurrence indicator on a recurring task", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "t1",
+            title: "Submit the bulletin",
+            status: "open",
+            ministry_id: "ktm-test",
+            recurrence_rule: "FREQ=WEEKLY",
+          },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<Tasks />);
+  expect(await screen.findByText(/↻ Weekly/)).toBeInTheDocument();
+});
+
 test("approvals tab only queries ministries where the user is admin or leader", async () => {
   mockUseAuth.mockReturnValue({
     ministryId: "ktm-test",
