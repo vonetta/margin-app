@@ -11,6 +11,7 @@ const navItems = [
   { label: "Tasks", path: "/tasks", icon: "☑" },
   { label: "Flyers", path: "/flyers", icon: "▣" },
   { label: "People", path: "/people", icon: "◎" },
+  { label: "Team", path: "/team", icon: "⚑", adminOnly: true },
   { label: "Resources", path: "/resources", icon: "▦", comingSoon: true },
   { label: "AI Profile", path: "/profile", icon: "◐" },
 ];
@@ -21,6 +22,8 @@ const Sidebar = () => {
   const { user, ministryId, ministry, logout, switchMinistry } = useAuth();
 
   const memberships = user?.ministries || [];
+  const currentRole = memberships.find((m) => m.ministry_id === ministryId)?.role;
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || currentRole === "admin");
 
   const handleSwitch = async (e) => {
     const newId = e.target.value;
@@ -94,7 +97,7 @@ const Sidebar = () => {
       </div>
 
       <nav style={{ flex: 1, padding: "12px 6px" }}>
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const active = location.pathname === item.path;
           const disabled = !!item.comingSoon;
           return (
