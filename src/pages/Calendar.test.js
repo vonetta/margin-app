@@ -21,6 +21,14 @@ beforeEach(() => {
   client.get.mockImplementation((url) => {
     if (url === "/api/events/expanded") return Promise.resolve({ data: [] });
     if (url === "/api/events") return Promise.resolve({ data: [] });
+    if (url === "/api/ministry/team") {
+      return Promise.resolve({
+        data: [
+          { _id: "u1", name: "Alex Admin", role: "admin" },
+          { _id: "u2", name: "Tina Team", role: "team" },
+        ],
+      });
+    }
     return Promise.resolve({ data: [] });
   });
 });
@@ -84,6 +92,33 @@ test("approving a pending event from the queue calls the approve endpoint", asyn
   fireEvent.click(await screen.findByText("Approve"));
 
   await waitFor(() => expect(client.put).toHaveBeenCalledWith("/api/events/evt-pending/approve"));
+});
+
+test("restricting an internal event to specific team members sends their ids as visible_to", async () => {
+  client.post.mockResolvedValue({ data: { _id: "e1" } });
+  render(<Calendar />);
+
+  fireEvent.click(screen.getByText("+ New event"));
+  fireEvent.change(screen.getByPlaceholderText("Event title"), {
+    target: { value: "Leadership Prayer Call" },
+  });
+  fireEvent.change(document.querySelector('input[type="date"]'), {
+    target: { value: "2026-06-02" },
+  });
+
+  fireEvent.click(await screen.findByText("Tina Team"));
+
+  fireEvent.click(screen.getByText("Add to calendar"));
+
+  await waitFor(() =>
+    expect(client.post).toHaveBeenCalledWith(
+      "/api/events",
+      expect.objectContaining({
+        title: "Leadership Prayer Call",
+        visible_to: ["u2"],
+      }),
+    ),
+  );
 });
 
 test("website tab shows the public ICS feed URL for the active ministry", async () => {

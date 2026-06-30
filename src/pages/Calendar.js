@@ -90,6 +90,8 @@ const Calendar = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [selectedDay, setSelectedDay] = useState(null);
+  const [team, setTeam] = useState([]);
+  const [visibleTo, setVisibleTo] = useState([]);
 
   const gridStart = useMemo(() => startOfCalendarGrid(monthDate), [monthDate]);
   const gridDays = useMemo(
@@ -136,6 +138,13 @@ const Calendar = () => {
     fetchPending();
   }, [fetchPending]);
 
+  useEffect(() => {
+    client
+      .get("/api/ministry/team")
+      .then((res) => setTeam(res.data || []))
+      .catch(() => setTeam([]));
+  }, []);
+
   const occurrencesByDay = useMemo(() => {
     const map = {};
     for (const occ of occurrences) {
@@ -150,8 +159,13 @@ const Calendar = () => {
   const resetForm = () => {
     setForm(emptyForm);
     setRecurrence(emptyRecurrence);
+    setVisibleTo([]);
     setError("");
     setShowForm(false);
+  };
+
+  const toggleVisibleTo = (userId) => {
+    setVisibleTo((v) => (v.includes(userId) ? v.filter((id) => id !== userId) : [...v, userId]));
   };
 
   const handleCreate = async () => {
@@ -178,6 +192,7 @@ const Calendar = () => {
         end: endIso,
         all_day: form.all_day,
         visibility: form.visibility,
+        visible_to: form.visibility === "internal" ? visibleTo : undefined,
         recurrence_rule: buildRecurrenceRule(recurrence) || undefined,
       });
       resetForm();
@@ -581,6 +596,33 @@ const Calendar = () => {
             </div>
           </div>
 
+          {form.visibility === "internal" && team.length > 0 && (
+            <div>
+              <label style={{ fontSize: "10px", color: "var(--gray-600)", display: "block", marginBottom: "4px" }}>
+                Visible to (leave empty for the whole team)
+              </label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {team.map((member) => (
+                  <button
+                    key={member._id}
+                    type="button"
+                    onClick={() => toggleVisibleTo(member._id)}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: "var(--border-radius)",
+                      border: `1.5px solid ${visibleTo.includes(member._id) ? "var(--navy)" : "var(--gray-300)"}`,
+                      background: visibleTo.includes(member._id) ? "#f4f8fb" : "transparent",
+                      fontSize: "11px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {member.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <button
               onClick={handleCreate}
@@ -712,6 +754,9 @@ const Calendar = () => {
                       : new Date(occ.occurrence_start).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
                     {describeRecurrence(occ) ? ` · ${describeRecurrence(occ)}` : ""}
                     {occ.visibility === "public" ? " · Public" : " · Internal"}
+                    {occ.visibility === "internal" && occ.visible_to?.length > 0
+                      ? ` (${occ.visible_to.length} ${occ.visible_to.length === 1 ? "person" : "people"})`
+                      : ""}
                   </div>
                   {occ.location && <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>{occ.location}</div>}
                   <button
