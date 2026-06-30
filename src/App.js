@@ -6,6 +6,7 @@ import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ContentStudio from "./pages/ContentStudio";
+import Communications from "./pages/Communications";
 import ProfileEditor from "./pages/ProfileEditor";
 import FlyerGenerator from "./pages/FlyerGenerator";
 import People from "./pages/People";
@@ -40,6 +41,16 @@ const App = () => {
               <ProtectedRoute>
                 <AppShell>
                   <ContentStudio />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/communications"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <Communications />
                 </AppShell>
               </ProtectedRoute>
             }

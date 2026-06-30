@@ -80,9 +80,8 @@ const Dashboard = () => {
           { label: "People", desc: "Directory and groups", path: "/people" },
           {
             label: "Communications",
-            desc: "Announcements and emails",
+            desc: "Draft emails to speakers and partners",
             path: "/communications",
-            comingSoon: true,
           },
           {
             label: "Events",
