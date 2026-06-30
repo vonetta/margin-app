@@ -396,3 +396,30 @@ test("shows a friendly message in Host & Speakers when the roster is empty", () 
   fireEvent.click(screen.getByText("Host & Speakers"));
   expect(screen.getByText(/No one in the roster yet/)).toBeInTheDocument();
 });
+
+test("the live preview canvas actually reflects the selectedLayout prop, not always the same layout", () => {
+  const props = {
+    initialStyle,
+    content,
+    branding,
+    platform: "Instagram",
+    layouts: [
+      { id: "monument", name: "Monument", description: "Host beside title" },
+      { id: "canvas", name: "Canvas", description: "Full-bleed venue photo" },
+    ],
+    onLayoutChange: () => {},
+    hasSubtitle: true,
+    hasDescription: true,
+    hasTags: true,
+    onComplete: () => {},
+    onCancel: () => {},
+  };
+
+  const { rerender } = render(<FlyerStyleWizard {...props} selectedLayout="auto" />);
+  // "auto" with no host/speakers resolves to monument — no "Save the Date"
+  // panel, which is canvas's distinguishing element.
+  expect(screen.queryByText("Save the Date")).not.toBeInTheDocument();
+
+  rerender(<FlyerStyleWizard {...props} selectedLayout="canvas" />);
+  expect(screen.getByText("Save the Date")).toBeInTheDocument();
+});

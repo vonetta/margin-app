@@ -113,6 +113,21 @@ const FlyerStyleWizard = ({
     return list;
   }, [branding]);
 
+  // Mirrors src/services/layouts/index.js#suggestLayout — when the wizard
+  // is on "auto", the preview should show whatever layout generation would
+  // actually pick, not just always default to one layout regardless of who
+  // got selected in Host & Speakers.
+  const resolvedLayout = useMemo(() => {
+    if (selectedLayout !== "auto") return selectedLayout;
+    const host = people.find((p) => p._id === hostId);
+    const hasHost = !!(host && (host.cutout_url || host.headshot_url));
+    const speakerCount = speakerIds.length;
+    if (speakerCount >= 3 && !hasHost) return "showcase";
+    if (hasHost && speakerCount >= 1) return "monument";
+    if (hasHost && speakerCount === 0) return "feature";
+    return "monument";
+  }, [selectedLayout, people, hostId, speakerIds]);
+
   const sizeSteps = useMemo(() => {
     const list = ["title_size"];
     if (hasSubtitle) list.push("subtitle_size");
@@ -206,6 +221,7 @@ const FlyerStyleWizard = ({
           branding={branding}
           platform={platform}
           backgroundImageUrl={backgroundUrl}
+          layout={resolvedLayout}
         />
 
         <div

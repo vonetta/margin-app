@@ -1,15 +1,15 @@
 import React, { useEffect } from "react";
 import { deriveColorVariants } from "../utils/colorVariants";
 
-// A live, client-side mirror of src/services/layouts/monument.js's no-host
-// composition (Content Studio's chat never collects a host/speakers, so
-// that half of the real template never applies here). This is NOT a
-// pixel-perfect copy of the server-rendered flyer — it's deliberately a
-// simplified approximation so the wizard can update it instantly as
-// sliders/choices change, without a Puppeteer round-trip per tick. The real
-// PNG always comes from the server; this is just so adjustments aren't
-// blind. Mirrors monument.js's full-bleed-background + fading-scrim
-// composition and percentages, not the older hard-edged side panel.
+// A live, client-side mirror of the backend layout templates
+// (src/services/layouts/*.js) — deliberately simplified approximations, not
+// pixel-perfect copies, so the wizard can update instantly as sliders/
+// choices change without a Puppeteer round-trip per tick. The real PNG
+// always comes from the server; this is just so adjustments (including
+// which layout is selected) aren't blind. Each of the 4 layouts gets its
+// own distinct branch below — picking a different layout in the wizard
+// must visibly change this preview, or the choice looks like it did
+// nothing even though the real generated flyer would differ correctly.
 const PLATFORM_DIMENSIONS = {
   Instagram: { width: 1080, height: 1350 },
   Facebook: { width: 1200, height: 1200 },
@@ -40,6 +40,7 @@ const FlyerPreviewCanvas = ({
   branding = {},
   platform = null,
   backgroundImageUrl = null,
+  layout = "monument",
 }) => {
   const baseColors = branding.colors || {};
   const variants = deriveColorVariants({
@@ -62,22 +63,8 @@ const FlyerPreviewCanvas = ({
 
   const px = (n) => Math.max(6, Math.round(n * SCALE));
 
-  const metaItems = [
-    content.date && { icon: "📅", value: content.date },
-    content.location && { icon: "📍", value: content.location },
-    content.cost && { icon: "💰", value: content.cost },
-  ].filter(Boolean);
-
   const gradientAngle = style.gradient_angle ?? 165;
-  const backgroundLayer = backgroundImageUrl
-    ? {
-        backgroundImage: `linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.25)), url(${backgroundImageUrl})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }
-    : {
-        background: `radial-gradient(circle at 25% 15%, rgba(255,255,255,0.18), transparent 45%), linear-gradient(${gradientAngle}deg, ${primary}, ${accent}, ${gold})`,
-      };
+  const brandGradientCss = `radial-gradient(circle at 25% 15%, rgba(255,255,255,0.18), transparent 45%), linear-gradient(${gradientAngle}deg, ${primary}, ${accent}, ${gold})`;
 
   const logoUrl = branding.logo_url;
   const logoSize = px(style.logo_size || 84);
@@ -111,232 +98,258 @@ const FlyerPreviewCanvas = ({
     </span>
   );
 
-  return (
-    <div
-      style={{
-        width: CANVAS_WIDTH,
-        height: CANVAS_HEIGHT,
-        background: bg,
-        position: "relative",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        borderRadius: "4px",
-        boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
-        fontFamily: "Georgia, serif",
-      }}
-    >
+  const wrapStyle = {
+    width: CANVAS_WIDTH,
+    height: CANVAS_HEIGHT,
+    background: bg,
+    position: "relative",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    borderRadius: "4px",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+    fontFamily: "Georgia, serif",
+  };
+
+  const titleStyle = (color) => ({
+    fontFamily: displayFont || "Georgia, serif",
+    fontWeight: 800,
+    fontSize: px(style.title_size || 70),
+    lineHeight: 1.0,
+    color,
+    textTransform: "uppercase",
+  });
+
+  const ctaStyle = (color) => ({
+    fontFamily: displayFont || "Georgia, serif",
+    fontWeight: 800,
+    fontSize: px((style.cta_size || 34) * 0.82),
+    color,
+    textTransform: "uppercase",
+  });
+
+  const tagRow = (color) =>
+    style.tags_visible &&
+    content.theme_tags?.length > 0 && (
+      <div style={{ marginTop: px(16), display: "flex", flexWrap: "wrap", gap: px(8) }}>
+        {content.theme_tags.map((t, i) => (
+          <span
+            key={i}
+            style={{
+              padding: `${px(6)}px ${px(14)}px`,
+              borderRadius: px(16),
+              border: `1.5px solid ${color}`,
+              fontSize: px(12),
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              color,
+              textTransform: "uppercase",
+            }}
+          >
+            {t}
+          </span>
+        ))}
+      </div>
+    );
+
+  const descBlock = (color) =>
+    style.description_visible &&
+    content.description && (
       <div
         style={{
-          position: "relative",
-          flex: 1,
-          minHeight: px(260),
-          ...backgroundLayer,
+          fontSize: px(style.description_size || 18),
+          lineHeight: 1.4,
+          color,
+          fontStyle: "italic",
+          marginTop: px(16),
         }}
       >
-        {backgroundImageUrl && style.gradient_overlay_opacity > 0 && (
+        {content.description}
+      </div>
+    );
+
+  // --- Monument: cream content column fading into a photo/gradient zone ---
+  if (layout === "monument") {
+    const metaItems = [
+      content.date && { icon: "📅", value: content.date },
+      content.location && { icon: "📍", value: content.location },
+      content.cost && { icon: "💰", value: content.cost },
+    ].filter(Boolean);
+
+    const backgroundLayer = backgroundImageUrl
+      ? {
+          backgroundImage: `linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.25)), url(${backgroundImageUrl})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }
+      : { background: brandGradientCss };
+
+    return (
+      <div style={wrapStyle}>
+        <div style={{ position: "relative", flex: 1, minHeight: px(260), ...backgroundLayer }}>
+          {backgroundImageUrl && style.gradient_overlay_opacity > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: brandGradientCss,
+                opacity: style.gradient_overlay_opacity / 100,
+                zIndex: 0,
+              }}
+            />
+          )}
           <div
             style={{
               position: "absolute",
-              inset: 0,
-              background: `radial-gradient(circle at 25% 15%, rgba(255,255,255,0.18), transparent 45%), linear-gradient(${gradientAngle}deg, ${primary}, ${accent}, ${gold})`,
-              opacity: style.gradient_overlay_opacity / 100,
-              zIndex: 0,
+              top: 0,
+              left: 0,
+              bottom: 0,
+              width: "58%",
+              background: `linear-gradient(90deg, ${bg} 0%, ${bg} 42%, rgba(0,0,0,0) 100%)`,
+              zIndex: 1,
             }}
           />
-        )}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            bottom: 0,
-            width: "58%",
-            background: `linear-gradient(90deg, ${bg} 0%, ${bg} 42%, rgba(0,0,0,0) 100%)`,
-            zIndex: 1,
-          }}
-        />
-        {logoPlacement === "photo-corner" && logoEl && (
-          <div style={{ position: "absolute", top: px(20), right: px(20), zIndex: 3 }}>
-            {logoEl}
-          </div>
-        )}
-        <div
-          style={{
-            position: "relative",
-            zIndex: 2,
-            width: "50%",
-            padding: `${px(48)}px ${px(48)}px`,
-          }}
-        >
-          {(logoPlacement === "top-left" || logoPlacement === "top-center") && logoEl && (
-            <div
-              style={{
-                textAlign: logoPlacement === "top-center" ? "center" : "left",
-                marginBottom: px(16),
-              }}
-            >
-              {logoEl}
-            </div>
+          {logoPlacement === "photo-corner" && logoEl && (
+            <div style={{ position: "absolute", top: px(20), right: px(20), zIndex: 3 }}>{logoEl}</div>
           )}
-          <div
-            style={{
-              fontFamily: displayFont || "Georgia, serif",
-              fontWeight: 800,
-              fontSize: px(style.title_size || 70),
-              lineHeight: 1.0,
-              color: primary,
-              textTransform: "uppercase",
-            }}
-          >
-            {content.title || "Event Title"}
+          <div style={{ position: "relative", zIndex: 2, width: "50%", padding: `${px(48)}px` }}>
+            {(logoPlacement === "top-left" || logoPlacement === "top-center") && logoEl && (
+              <div style={{ textAlign: logoPlacement === "top-center" ? "center" : "left", marginBottom: px(16) }}>
+                {logoEl}
+              </div>
+            )}
+            <div style={titleStyle(primary)}>{content.title || "Event Title"}</div>
+            {content.subtitle && (
+              <div style={{ fontFamily: accentFont || "cursive", fontSize: px(style.subtitle_size || 48), color: accent, marginTop: px(8) }}>
+                {content.subtitle}
+              </div>
+            )}
+            {tagRow(primary)}
+            {descBlock("rgba(0,0,0,0.7)")}
+            {content.highlights?.length > 0 && (
+              <div style={{ marginTop: px(16), display: "flex", flexDirection: "column", gap: px(6) }}>
+                {content.highlights.map((h, i) => (
+                  <div key={i} style={{ fontSize: px(15), color: primary, fontWeight: 500 }}>
+                    <span style={{ color: gold, fontWeight: 700 }}>✓ </span>
+                    {h}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+        </div>
+        {metaItems.length > 0 && (
+          <div style={{ display: "flex", justifyContent: "center", gap: px(20), padding: `${px(14)}px 0`, borderTop: "1px solid rgba(0,0,0,0.1)", borderBottom: "1px solid rgba(0,0,0,0.1)", flexWrap: "wrap", background: bg }}>
+            {metaItems.map((m, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: px(6), fontSize: px(15), color: primary, fontWeight: 700 }}>
+                <span style={{ width: px(28), height: px(28), borderRadius: "50%", background: primary, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: px(13) }}>{m.icon}</span>
+                {m.value}
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ flex: "0 0 auto", background: primary, borderTop: `${px(4)}px solid ${gold}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: px(12), padding: `${px(18)}px ${px(48)}px` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: px(12) }}>
+            {logoPlacement === "footer-left" && logoEl}
+            <div style={ctaStyle(gold)}>{content.cta || "Call to action"}</div>
+          </div>
+          {logoPlacement === "footer-right" && logoEl}
+        </div>
+      </div>
+    );
+  }
+
+  // --- Feature: dark scrim over a hero photo/gradient, text on the left ---
+  if (layout === "feature") {
+    const bgLayer = backgroundImageUrl
+      ? { backgroundImage: `url(${backgroundImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
+      : { background: brandGradientCss };
+    return (
+      <div style={{ ...wrapStyle, ...bgLayer }}>
+        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(90deg, ${primary} 30%, ${primary}88 55%, transparent 75%)` }} />
+        <div style={{ position: "relative", zIndex: 2, padding: px(40), display: "flex", flexDirection: "column", height: "100%", width: "70%" }}>
+          {logoEl && <div style={{ marginBottom: px(16) }}>{logoEl}</div>}
+          <div style={titleStyle("#fff")}>{content.title || "Event Title"}</div>
           {content.subtitle && (
-            <div
-              style={{
-                fontFamily: accentFont || "cursive",
-                fontSize: px(style.subtitle_size || 48),
-                color: accent,
-                marginTop: px(8),
-              }}
-            >
+            <div style={{ fontSize: px(style.subtitle_size || 26), color: "rgba(255,255,255,0.9)", fontStyle: "italic", marginTop: px(14) }}>
               {content.subtitle}
             </div>
           )}
-          {style.tags_visible && content.theme_tags?.length > 0 && (
-            <div
-              style={{
-                marginTop: px(20),
-                display: "flex",
-                flexWrap: "wrap",
-                gap: px(8),
-              }}
-            >
-              {content.theme_tags.map((t, i) => (
-                <span
-                  key={i}
-                  style={{
-                    padding: `${px(6)}px ${px(14)}px`,
-                    borderRadius: px(16),
-                    border: `1.5px solid ${primary}88`,
-                    fontSize: px(12),
-                    fontWeight: 700,
-                    letterSpacing: "0.04em",
-                    color: primary,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {t}
-                </span>
-              ))}
+          {tagRow("#fff")}
+          {descBlock("rgba(255,255,255,0.85)")}
+          <div style={{ marginTop: "auto", display: "flex", alignItems: "flex-end" }}>
+            <div style={{ ...ctaStyle(gold), background: "rgba(0,0,0,0.4)", padding: `${px(8)}px ${px(14)}px`, borderRadius: px(6) }}>
+              {content.cta || "Call to action"}
             </div>
-          )}
-          {style.description_visible && content.description && (
-            <div
-              style={{
-                fontSize: px(style.description_size || 18),
-                lineHeight: 1.4,
-                color: "rgba(0,0,0,0.7)",
-                fontStyle: "italic",
-                marginTop: px(16),
-              }}
-            >
-              {content.description}
-            </div>
-          )}
-          {content.highlights?.length > 0 && (
-            <div style={{ marginTop: px(16), display: "flex", flexDirection: "column", gap: px(6) }}>
-              {content.highlights.map((h, i) => (
-                <div
-                  key={i}
-                  style={{
-                    fontSize: px(15),
-                    color: primary,
-                    fontWeight: 500,
-                  }}
-                >
-                  <span style={{ color: gold, fontWeight: 700 }}>✓ </span>
-                  {h}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {metaItems.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: px(20),
-            padding: `${px(14)}px 0`,
-            borderTop: `1px solid rgba(0,0,0,0.1)`,
-            borderBottom: `1px solid rgba(0,0,0,0.1)`,
-            flexWrap: "wrap",
-            background: bg,
-          }}
-        >
-          {metaItems.map((m, i) => (
-            <div
-              key={i}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: px(6),
-                fontSize: px(15),
-                color: primary,
-                fontWeight: 700,
-              }}
-            >
-              <span
-                style={{
-                  width: px(28),
-                  height: px(28),
-                  borderRadius: "50%",
-                  background: primary,
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: px(13),
-                }}
-              >
-                {m.icon}
-              </span>
-              {m.value}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div
-        style={{
-          flex: "0 0 auto",
-          background: primary,
-          borderTop: `${px(4)}px solid ${gold}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: px(12),
-          padding: `${px(18)}px ${px(48)}px`,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: px(12) }}>
-          {logoPlacement === "footer-left" && logoEl}
-          <div
-            style={{
-              fontFamily: displayFont || "Georgia, serif",
-              fontWeight: 800,
-              fontSize: px((style.cta_size || 34) * 0.82),
-              color: gold,
-              textTransform: "uppercase",
-            }}
-          >
-            {content.cta || "Call to action"}
           </div>
         </div>
-        {logoPlacement === "footer-right" && logoEl}
+      </div>
+    );
+  }
+
+  // --- Canvas: full-bleed photo/gradient, floating center panel, bottom CTA bar ---
+  if (layout === "canvas") {
+    const bgLayer = backgroundImageUrl
+      ? { backgroundImage: `url(${backgroundImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
+      : { background: brandGradientCss };
+    return (
+      <div style={{ ...wrapStyle, ...bgLayer }}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, padding: px(28), display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: px(12) }}>
+          <div>
+            <div style={{ ...titleStyle("#fff"), fontSize: px((style.title_size || 70) * 0.85), textShadow: "0 2px 10px rgba(0,0,0,0.6)" }}>
+              {content.title || "Event Title"}
+            </div>
+            {content.subtitle && (
+              <div style={{ fontFamily: accentFont || "cursive", fontSize: px(style.subtitle_size || 48), color: gold, textShadow: "0 2px 10px rgba(0,0,0,0.6)" }}>
+                {content.subtitle}
+              </div>
+            )}
+          </div>
+          {logoEl}
+        </div>
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "70%",
+            background: `${primary}e0`,
+            border: `2px solid ${gold}`,
+            padding: px(24),
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontFamily: accentFont || "cursive", fontSize: px(30), color: gold }}>Save the Date</div>
+          {content.date && <div style={{ fontSize: px(18), fontWeight: 700, color: "#fff", marginTop: px(8) }}>{content.date}</div>}
+          {content.location && <div style={{ fontSize: px(14), color: "rgba(255,255,255,0.9)", marginTop: px(4) }}>{content.location}</div>}
+        </div>
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: primary, borderTop: `${px(4)}px solid ${gold}`, padding: px(16), textAlign: "center" }}>
+          <div style={ctaStyle(gold)}>{content.cta || "Call to action"}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Showcase: centered title over full-bleed photo/gradient, footer CTA ---
+  const bgLayer = backgroundImageUrl
+    ? { backgroundImage: `linear-gradient(${primary}99, ${primary}cc), url(${backgroundImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
+    : { background: brandGradientCss };
+  return (
+    <div style={{ ...wrapStyle, ...bgLayer }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: px(36), textAlign: "center" }}>
+        {logoEl && <div style={{ marginBottom: px(16) }}>{logoEl}</div>}
+        <div style={{ ...titleStyle("#fff"), textShadow: "0 2px 10px rgba(0,0,0,0.5)" }}>{content.title || "Event Title"}</div>
+        {content.subtitle && (
+          <div style={{ fontFamily: accentFont || "cursive", fontSize: px(style.subtitle_size || 44), color: gold, marginTop: px(6) }}>
+            {content.subtitle}
+          </div>
+        )}
+        {tagRow("#fff")}
+        {descBlock("rgba(255,255,255,0.88)")}
+      </div>
+      <div style={{ flex: "0 0 auto", background: primary, borderTop: `${px(4)}px solid ${gold}`, padding: `${px(16)}px ${px(40)}px`, textAlign: "center" }}>
+        <div style={ctaStyle(gold)}>{content.cta || "Call to action"}</div>
       </div>
     </div>
   );
