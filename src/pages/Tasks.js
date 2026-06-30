@@ -1,0 +1,546 @@
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import client from "../api/client";
+import { useAuth } from "../context/AuthContext";
+
+const FALLBACK_COLOR = "#4a5a6a";
+
+const emptyForm = {
+  title: "",
+  description: "",
+  dueDate: "",
+  assignedTo: "",
+};
+
+const formatDue = (dateStr) => {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  const overdue = d < new Date(new Date().toDateString());
+  return { label: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }), overdue };
+};
+
+const Tasks = () => {
+  const { user, ministryId } = useAuth();
+  const memberships = useMemo(() => user?.ministries || [], [user]);
+  const colorFor = useCallback(
+    (mId) => memberships.find((m) => m.ministry_id === mId)?.color || FALLBACK_COLOR,
+    [memberships],
+  );
+  const nameFor = useCallback(
+    (mId) => memberships.find((m) => m.ministry_id === mId)?.name || mId,
+    [memberships],
+  );
+
+  const [tab, setTab] = useState("mine");
+  const [myTasks, setMyTasks] = useState([]);
+  const [assignedByMe, setAssignedByMe] = useState([]);
+  const [approvals, setApprovals] = useState([]);
+  const [showDone, setShowDone] = useState(false);
+  const [team, setTeam] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const fetchTasks = useCallback(
+    async (mine) => {
+      if (memberships.length === 0) return [];
+      const results = await Promise.all(
+        memberships.map((m) =>
+          client
+            .get("/api/tasks", {
+              params: mine === false ? { mine: "false" } : undefined,
+              headers: { "x-ministry-id": m.ministry_id },
+            })
+            .then((res) => res.data.map((t) => ({ ...t, ministry_id: m.ministry_id })))
+            .catch(() => []),
+        ),
+      );
+      return results.flat();
+    },
+    [memberships],
+  );
+
+  const refreshMine = useCallback(async () => {
+    setMyTasks(await fetchTasks(true));
+  }, [fetchTasks]);
+
+  const refreshAssignedByMe = useCallback(async () => {
+    setAssignedByMe(await fetchTasks(false));
+  }, [fetchTasks]);
+
+  // The only thing currently auto-surfaced as "needs your action" is a
+  // pending calendar event from a generated flyer — there's no other
+  // approval-style workflow in the app yet. Only ministries where this
+  // user is admin/leader can approve, so only those memberships are
+  // queried.
+  const fetchApprovals = useCallback(async () => {
+    const adminMemberships = memberships.filter((m) => m.role === "admin" || m.role === "leader");
+    if (adminMemberships.length === 0) {
+      setApprovals([]);
+      return;
+    }
+    const results = await Promise.all(
+      adminMemberships.map((m) =>
+        client
+          .get("/api/events", {
+            params: { status: "pending" },
+            headers: { "x-ministry-id": m.ministry_id },
+          })
+          .then((res) => res.data.map((e) => ({ ...e, ministry_id: m.ministry_id })))
+          .catch(() => []),
+      ),
+    );
+    setApprovals(results.flat());
+  }, [memberships]);
+
+  useEffect(() => {
+    refreshMine();
+  }, [refreshMine]);
+
+  useEffect(() => {
+    if (tab === "assigned") refreshAssignedByMe();
+  }, [tab, refreshAssignedByMe]);
+
+  useEffect(() => {
+    fetchApprovals();
+  }, [fetchApprovals]);
+
+  useEffect(() => {
+    client
+      .get("/api/ministry/team")
+      .then((res) => setTeam(res.data || []))
+      .catch(() => setTeam([]));
+  }, []);
+
+  const resetForm = () => {
+    setForm(emptyForm);
+    setError("");
+    setShowForm(false);
+  };
+
+  const handleCreate = async () => {
+    if (!form.title.trim() || !form.assignedTo) {
+      setError("Title and an assignee are required");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await client.post("/api/tasks", {
+        title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        due_date: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
+        assigned_to: form.assignedTo,
+      });
+      resetForm();
+      await Promise.all([refreshMine(), refreshAssignedByMe()]);
+    } catch (err) {
+      setError(err.response?.data?.errors?.[0]?.msg || err.response?.data?.error || "Failed to create task");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleComplete = async (task) => {
+    try {
+      await client.put(`/api/tasks/${task._id}/complete`, null, {
+        headers: { "x-ministry-id": task.ministry_id },
+      });
+      await Promise.all([refreshMine(), refreshAssignedByMe()]);
+    } catch (err) {
+      setError("Failed to complete task");
+    }
+  };
+
+  const handleReopen = async (task) => {
+    try {
+      await client.put(`/api/tasks/${task._id}/reopen`, null, {
+        headers: { "x-ministry-id": task.ministry_id },
+      });
+      await Promise.all([refreshMine(), refreshAssignedByMe()]);
+    } catch (err) {
+      setError("Failed to reopen task");
+    }
+  };
+
+  const handleDelete = async (task) => {
+    try {
+      await client.delete(`/api/tasks/${task._id}`, {
+        headers: { "x-ministry-id": task.ministry_id },
+      });
+      await Promise.all([refreshMine(), refreshAssignedByMe()]);
+    } catch (err) {
+      setError("Failed to delete task");
+    }
+  };
+
+  const visibleMine = myTasks.filter((t) => (showDone ? true : t.status === "open"));
+  const openCount = myTasks.filter((t) => t.status === "open").length;
+
+  const renderTask = (task, { showAssignee } = {}) => {
+    const due = formatDue(task.due_date);
+    return (
+      <div
+        key={task._id}
+        style={{
+          background: "var(--white)",
+          border: "0.5px solid var(--gray-300)",
+          borderLeft: `3px solid ${colorFor(task.ministry_id)}`,
+          borderRadius: "var(--border-radius-lg)",
+          padding: "14px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "12px",
+          opacity: task.status === "done" ? 0.6 : 1,
+        }}
+      >
+        <div>
+          {memberships.length > 1 && (
+            <div style={{ fontSize: "9px", color: colorFor(task.ministry_id), fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
+              {nameFor(task.ministry_id)}
+            </div>
+          )}
+          <div
+            style={{
+              fontSize: "13px",
+              fontWeight: "600",
+              color: "var(--charcoal)",
+              textDecoration: task.status === "done" ? "line-through" : "none",
+            }}
+          >
+            {task.title}
+          </div>
+          {task.description && (
+            <div style={{ fontSize: "11px", color: "var(--gray-600)", marginTop: "4px" }}>{task.description}</div>
+          )}
+          <div style={{ fontSize: "10px", color: "var(--gray-500)", marginTop: "4px" }}>
+            {due && (
+              <span style={{ color: due.overdue && task.status === "open" ? "#c0504d" : "var(--gray-500)" }}>
+                Due {due.label}
+              </span>
+            )}
+            {showAssignee && (
+              <span>{due ? " · " : ""}{team.find((m) => m._id === task.assigned_to)?.name || "Someone"}</span>
+            )}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+          {task.status === "open" ? (
+            <button
+              onClick={() => handleComplete(task)}
+              style={{
+                padding: "5px 10px",
+                background: "var(--navy)",
+                color: "var(--white)",
+                border: "none",
+                borderRadius: "var(--border-radius)",
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
+            >
+              ✓ Done
+            </button>
+          ) : (
+            <button
+              onClick={() => handleReopen(task)}
+              style={{
+                padding: "5px 10px",
+                background: "transparent",
+                color: "var(--gray-600)",
+                border: "0.5px solid var(--gray-300)",
+                borderRadius: "var(--border-radius)",
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
+            >
+              Reopen
+            </button>
+          )}
+          <button
+            onClick={() => handleDelete(task)}
+            style={{
+              padding: "5px 10px",
+              background: "transparent",
+              color: "#c0504d",
+              border: "0.5px solid #e8b4b4",
+              borderRadius: "var(--border-radius)",
+              fontSize: "11px",
+              cursor: "pointer",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ padding: "32px", flex: 1, overflow: "auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
+        <div>
+          <h2
+            style={{
+              fontFamily: "Cinzel, serif",
+              fontSize: "20px",
+              fontWeight: "500",
+              letterSpacing: "0.04em",
+              color: "var(--navy)",
+              marginBottom: "4px",
+            }}
+          >
+            Tasks
+          </h2>
+          <p style={{ fontSize: "12px", color: "var(--gray-600)" }}>
+            What you and your team need to get done, across every ministry you're part of
+          </p>
+        </div>
+        <button
+          onClick={() => setShowForm((s) => !s)}
+          style={{
+            padding: "8px 16px",
+            background: "var(--navy)",
+            color: "var(--white)",
+            border: "none",
+            borderRadius: "var(--border-radius)",
+            fontSize: "12px",
+            fontWeight: "500",
+            cursor: "pointer",
+          }}
+        >
+          {showForm ? "Cancel" : "+ New task"}
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: "4px", marginBottom: "20px" }}>
+        {[
+          { key: "mine", label: `My tasks${openCount ? ` (${openCount})` : ""}` },
+          { key: "assigned", label: "Assigned by me" },
+          { key: "approvals", label: `Needs approval${approvals.length ? ` (${approvals.length})` : ""}` },
+        ].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            style={{
+              padding: "6px 16px",
+              borderRadius: "20px",
+              border: "0.5px solid var(--gray-300)",
+              background: tab === t.key ? "var(--navy)" : "transparent",
+              color: tab === t.key ? "var(--white)" : "var(--charcoal)",
+              fontSize: "12px",
+              fontWeight: "500",
+              cursor: "pointer",
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <div
+          style={{
+            background: "#fdf0f0",
+            border: "0.5px solid #e8b4b4",
+            borderRadius: "var(--border-radius)",
+            padding: "10px 12px",
+            fontSize: "12px",
+            color: "#c0504d",
+            marginBottom: "16px",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {showForm && (
+        <div
+          style={{
+            background: "var(--white)",
+            border: "0.5px solid var(--gray-300)",
+            borderRadius: "var(--border-radius-lg)",
+            padding: "20px",
+            marginBottom: "20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+          }}
+        >
+          {memberships.length > 1 && (
+            <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>
+              Creating in: <span style={{ fontWeight: "600", color: colorFor(ministryId) }}>{nameFor(ministryId)}</span>
+              {" — switch ministries from the sidebar to assign within a different one"}
+            </div>
+          )}
+          <input
+            type="text"
+            placeholder="Task title"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            style={{
+              padding: "8px 12px",
+              border: "0.5px solid var(--gray-300)",
+              borderRadius: "var(--border-radius)",
+              fontSize: "13px",
+            }}
+          />
+          <textarea
+            placeholder="Description (optional)"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            rows={2}
+            style={{
+              padding: "8px 12px",
+              border: "0.5px solid var(--gray-300)",
+              borderRadius: "var(--border-radius)",
+              fontSize: "13px",
+              resize: "vertical",
+            }}
+          />
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <select
+              value={form.assignedTo}
+              onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+              style={{
+                padding: "8px 12px",
+                border: "0.5px solid var(--gray-300)",
+                borderRadius: "var(--border-radius)",
+                fontSize: "13px",
+                flex: 1,
+                minWidth: "180px",
+              }}
+            >
+              <option value="">Assign to...</option>
+              {team.map((member) => (
+                <option key={member._id} value={member._id}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={form.dueDate}
+              onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+              style={{
+                padding: "8px 12px",
+                border: "0.5px solid var(--gray-300)",
+                borderRadius: "var(--border-radius)",
+                fontSize: "13px",
+              }}
+            />
+          </div>
+          <div>
+            <button
+              onClick={handleCreate}
+              disabled={saving}
+              style={{
+                padding: "8px 16px",
+                background: "var(--navy)",
+                color: "var(--white)",
+                border: "none",
+                borderRadius: "var(--border-radius)",
+                fontSize: "12px",
+                fontWeight: "500",
+                cursor: "pointer",
+              }}
+            >
+              {saving ? "Saving..." : "Assign task"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tab === "mine" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <label style={{ fontSize: "11px", color: "var(--gray-500)", display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+            <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} />
+            Show completed
+          </label>
+          {visibleMine.length === 0 && (
+            <div
+              style={{
+                background: "var(--white)",
+                border: "0.5px solid var(--gray-300)",
+                borderRadius: "var(--border-radius-lg)",
+                padding: "32px",
+                textAlign: "center",
+                fontSize: "12px",
+                color: "var(--gray-500)",
+              }}
+            >
+              Nothing assigned to you right now.
+            </div>
+          )}
+          {visibleMine.map((t) => renderTask(t))}
+        </div>
+      )}
+
+      {tab === "assigned" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {assignedByMe.length === 0 && (
+            <div
+              style={{
+                background: "var(--white)",
+                border: "0.5px solid var(--gray-300)",
+                borderRadius: "var(--border-radius-lg)",
+                padding: "32px",
+                textAlign: "center",
+                fontSize: "12px",
+                color: "var(--gray-500)",
+              }}
+            >
+              You haven't assigned any tasks yet.
+            </div>
+          )}
+          {assignedByMe.map((t) => renderTask(t, { showAssignee: true }))}
+        </div>
+      )}
+
+      {tab === "approvals" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {approvals.length === 0 && (
+            <div
+              style={{
+                background: "var(--white)",
+                border: "0.5px solid var(--gray-300)",
+                borderRadius: "var(--border-radius-lg)",
+                padding: "32px",
+                textAlign: "center",
+                fontSize: "12px",
+                color: "var(--gray-500)",
+              }}
+            >
+              Nothing waiting on you. Events auto-created from generated flyers show up here until you approve or reject
+              them on the Calendar page.
+            </div>
+          )}
+          {approvals.map((event) => (
+            <div
+              key={event._id}
+              style={{
+                background: "var(--white)",
+                border: "0.5px solid var(--gray-300)",
+                borderLeft: `3px solid ${colorFor(event.ministry_id)}`,
+                borderRadius: "var(--border-radius-lg)",
+                padding: "14px",
+              }}
+            >
+              {memberships.length > 1 && (
+                <div style={{ fontSize: "9px", color: colorFor(event.ministry_id), fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
+                  {nameFor(event.ministry_id)}
+                </div>
+              )}
+              <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--charcoal)" }}>{event.title}</div>
+              <div style={{ fontSize: "11px", color: "var(--gray-500)", marginTop: "4px" }}>
+                Calendar event awaiting approval — review it on the Calendar page
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Tasks;

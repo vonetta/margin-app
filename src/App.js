@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import ContentStudio from "./pages/ContentStudio";
 import Communications from "./pages/Communications";
 import Calendar from "./pages/Calendar";
+import Tasks from "./pages/Tasks";
 import ProfileEditor from "./pages/ProfileEditor";
 import FlyerGenerator from "./pages/FlyerGenerator";
 import People from "./pages/People";
@@ -62,6 +63,16 @@ const App = () => {
               <ProtectedRoute>
                 <AppShell>
                   <Calendar />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tasks"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <Tasks />
                 </AppShell>
               </ProtectedRoute>
             }

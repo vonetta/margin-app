@@ -7,6 +7,7 @@ const navItems = [
   { label: "Content Studio", path: "/content", icon: "✦" },
   { label: "Communications", path: "/communications", icon: "✉" },
   { label: "Calendar", path: "/calendar", icon: "◈" },
+  { label: "Tasks", path: "/tasks", icon: "☑" },
   { label: "Flyers", path: "/flyers", icon: "▣" },
   { label: "People", path: "/people", icon: "◎" },
   { label: "Resources", path: "/resources", icon: "▦", comingSoon: true },

@@ -88,6 +88,11 @@ const Dashboard = () => {
             desc: "Prayer calls, meetings, and upcoming events",
             path: "/calendar",
           },
+          {
+            label: "Tasks",
+            desc: "What you and your team need to get done",
+            path: "/tasks",
+          },
         ].map((card) => (
           <div
             key={card.path}
