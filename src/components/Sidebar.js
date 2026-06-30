@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import NotificationBell from "./NotificationBell";
 
 const navItems = [
   { label: "Dashboard", path: "/", icon: "⊞" },
@@ -150,6 +151,7 @@ const Sidebar = () => {
           borderTop: "0.5px solid rgba(255,255,255,0.08)",
         }}
       >
+        <NotificationBell />
         <div
           style={{
             padding: "8px 12px",
