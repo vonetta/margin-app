@@ -263,6 +263,19 @@ const FlyerStyleWizard = ({
                     <button onClick={handleChangeAcceptedBackground} style={secondaryBtn}>
                       ↺ Use a different image
                     </button>
+
+                    <div style={{ fontSize: "12px", color: "var(--gray-600)", margin: "18px 0 6px" }}>
+                      Brand gradient on top — {style.gradient_overlay_opacity}%
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={style.gradient_overlay_opacity}
+                      onChange={(e) => set("gradient_overlay_opacity", Number(e.target.value))}
+                      style={{ width: "100%" }}
+                    />
                   </div>
                 ) : candidate ? (
                   <div>

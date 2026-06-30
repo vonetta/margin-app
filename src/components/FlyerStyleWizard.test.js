@@ -21,6 +21,7 @@ const initialStyle = {
   logo_backing: "none",
   color_variant: "brand",
   gradient_angle: 165,
+  gradient_overlay_opacity: 0,
   display_font: null,
   body_font: null,
   accent_font: null,
@@ -292,4 +293,36 @@ test("lets the user adjust the gradient direction", () => {
   fireEvent.click(screen.getByText("✦ Generate flyer"));
 
   expect(onComplete.mock.calls[0][0].gradient_angle).toBe(60);
+});
+
+test("lets the user dial in a gradient overlay once a background image is accepted", async () => {
+  client.post.mockResolvedValue({
+    data: { _id: "bg1", url: "https://r2.dev/candidate.png" },
+  });
+  const onComplete = jest.fn();
+  render(
+    <FlyerStyleWizard
+      initialStyle={initialStyle}
+      content={content}
+      branding={branding}
+      platform="Instagram"
+      hasSubtitle
+      hasDescription
+      hasTags
+      onComplete={onComplete}
+      onCancel={() => {}}
+    />,
+  );
+
+  // No overlay control before there's an image to overlay onto.
+  expect(screen.queryByText(/Brand gradient on top/)).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("✦ Generate an image"));
+  fireEvent.click(await screen.findByText("✓ Use this"));
+
+  expect(screen.getByText(/Brand gradient on top/)).toBeInTheDocument();
+  fireEvent.change(screen.getByRole("slider"), { target: { value: "40" } });
+  fireEvent.click(screen.getByText("✦ Generate flyer"));
+
+  expect(onComplete.mock.calls[0][0].gradient_overlay_opacity).toBe(40);
 });

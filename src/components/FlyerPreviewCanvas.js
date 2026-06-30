@@ -134,6 +134,17 @@ const FlyerPreviewCanvas = ({
           ...backgroundLayer,
         }}
       >
+        {backgroundImageUrl && style.gradient_overlay_opacity > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: `radial-gradient(circle at 25% 15%, rgba(255,255,255,0.18), transparent 45%), linear-gradient(${gradientAngle}deg, ${primary}, ${accent}, ${gold})`,
+              opacity: style.gradient_overlay_opacity / 100,
+              zIndex: 0,
+            }}
+          />
+        )}
         <div
           style={{
             position: "absolute",
