@@ -58,6 +58,14 @@ const FlyerStyleWizard = ({
   branding,
   platform,
   typeSystemFonts = [],
+  people = [],
+  layouts = [],
+  hostId = "",
+  onHostChange,
+  speakerIds = [],
+  onSpeakersChange,
+  selectedLayout = "auto",
+  onLayoutChange,
   hasSubtitle,
   hasDescription,
   hasTags,
@@ -65,7 +73,7 @@ const FlyerStyleWizard = ({
   onCancel,
 }) => {
   const [style, setStyle] = useState(initialStyle);
-  const [section, setSection] = useState("background");
+  const [section, setSection] = useState("layout");
   const [backgroundUrl, setBackgroundUrl] = useState(null);
   const [candidate, setCandidate] = useState(null); // { _id, url } awaiting accept/reject
   const [generatingBg, setGeneratingBg] = useState(false);
@@ -94,6 +102,8 @@ const FlyerStyleWizard = ({
 
   const sections = useMemo(() => {
     const list = [
+      { key: "layout", label: "Layout" },
+      { key: "people", label: "Host & Speakers" },
       { key: "background", label: "Background" },
       { key: "typography", label: "Typography" },
       { key: "colors", label: "Colors" },
@@ -240,6 +250,142 @@ const FlyerStyleWizard = ({
               gap: "16px",
             }}
           >
+            {section === "layout" && (
+              <div>
+                <div style={{ fontFamily: "Cinzel, serif", fontSize: "15px", color: "var(--navy)", marginBottom: "12px" }}>
+                  Layout
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <button
+                    onClick={() => onLayoutChange?.("auto")}
+                    style={{
+                      textAlign: "left",
+                      padding: "10px 12px",
+                      borderRadius: "var(--border-radius)",
+                      border: `1.5px solid ${selectedLayout === "auto" ? "var(--navy)" : "var(--gray-300)"}`,
+                      background: selectedLayout === "auto" ? "#f4f8fb" : "transparent",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontSize: "13px", fontWeight: "500", color: "var(--navy)" }}>
+                      Auto-suggest
+                    </div>
+                    <div style={{ fontSize: "11px", color: "var(--gray-500)", marginTop: "2px" }}>
+                      Picked based on whether there's a host or speakers
+                    </div>
+                  </button>
+                  {layouts.map((l) => (
+                    <button
+                      key={l.id}
+                      onClick={() => onLayoutChange?.(l.id)}
+                      style={{
+                        textAlign: "left",
+                        padding: "10px 12px",
+                        borderRadius: "var(--border-radius)",
+                        border: `1.5px solid ${selectedLayout === l.id ? "var(--navy)" : "var(--gray-300)"}`,
+                        background: selectedLayout === l.id ? "#f4f8fb" : "transparent",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ fontSize: "13px", fontWeight: "500", color: "var(--navy)" }}>
+                        {l.name}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "var(--gray-500)", marginTop: "2px" }}>
+                        {l.description}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {section === "people" && (
+              <div>
+                <div style={{ fontFamily: "Cinzel, serif", fontSize: "15px", color: "var(--navy)", marginBottom: "12px" }}>
+                  Host &amp; Speakers
+                </div>
+                {people.length === 0 ? (
+                  <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
+                    No one in the roster yet — add people on the People page first.
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: "12px", color: "var(--gray-600)", marginBottom: "6px" }}>Host</div>
+                    <select
+                      value={hostId}
+                      onChange={(e) => onHostChange?.(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "9px 12px",
+                        border: "0.5px solid var(--gray-300)",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "13px",
+                        marginBottom: "18px",
+                      }}
+                    >
+                      <option value="">No host</option>
+                      {people.map((p) => (
+                        <option key={p._id} value={p._id}>
+                          {p.name}
+                          {p.title ? ` — ${p.title}` : ""}
+                        </option>
+                      ))}
+                    </select>
+
+                    <div style={{ fontSize: "12px", color: "var(--gray-600)", marginBottom: "6px" }}>Speakers</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px", maxHeight: "180px", overflow: "auto" }}>
+                      {people.map((p) => {
+                        const checked = speakerIds.includes(p._id);
+                        return (
+                          <div
+                            key={p._id}
+                            onClick={() =>
+                              onSpeakersChange?.(
+                                checked
+                                  ? speakerIds.filter((id) => id !== p._id)
+                                  : [...speakerIds, p._id],
+                              )
+                            }
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "10px",
+                              padding: "6px 8px",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              background: checked ? "#f4f8fb" : "transparent",
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: "14px",
+                                height: "14px",
+                                borderRadius: "3px",
+                                border: `0.5px solid ${checked ? "var(--navy)" : "var(--gray-300)"}`,
+                                background: checked ? "var(--navy)" : "transparent",
+                                color: "var(--white)",
+                                fontSize: "10px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {checked ? "✓" : ""}
+                            </span>
+                            <span style={{ fontSize: "12px", color: "var(--charcoal)" }}>
+                              {p.name}
+                              {p.title ? ` — ${p.title}` : ""}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {section === "background" && (
               <div>
                 <div style={{ fontFamily: "Cinzel, serif", fontSize: "15px", color: "var(--navy)", marginBottom: "12px" }}>

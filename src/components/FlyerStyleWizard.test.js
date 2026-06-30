@@ -117,6 +117,7 @@ test("lets the user generate, accept, and use a background image", async () => {
     />,
   );
 
+  fireEvent.click(screen.getByText("Background"));
   fireEvent.click(screen.getByText("✦ Generate an image"));
   await waitFor(() => expect(client.post).toHaveBeenCalledWith(
     "/api/flyers/background-preview",
@@ -149,6 +150,7 @@ test("deletes a rejected candidate when the user tries another", async () => {
     />,
   );
 
+  fireEvent.click(screen.getByText("Background"));
   fireEvent.click(screen.getByText("✦ Generate an image"));
   fireEvent.click(await screen.findByText("Try another"));
   await waitFor(() => expect(client.delete).toHaveBeenCalledWith("/api/backgrounds/bg1"));
@@ -317,6 +319,7 @@ test("lets the user dial in a gradient overlay once a background image is accept
   // No overlay control before there's an image to overlay onto.
   expect(screen.queryByText(/Brand gradient on top/)).not.toBeInTheDocument();
 
+  fireEvent.click(screen.getByText("Background"));
   fireEvent.click(screen.getByText("✦ Generate an image"));
   fireEvent.click(await screen.findByText("✓ Use this"));
 
@@ -325,4 +328,71 @@ test("lets the user dial in a gradient overlay once a background image is accept
   fireEvent.click(screen.getByText("✦ Generate flyer"));
 
   expect(onComplete.mock.calls[0][0].gradient_overlay_opacity).toBe(40);
+});
+
+test("lets the user pick a layout, host, and speakers; forwards them on complete", () => {
+  const onComplete = jest.fn();
+  const onLayoutChange = jest.fn();
+  const onHostChange = jest.fn();
+  const onSpeakersChange = jest.fn();
+  render(
+    <FlyerStyleWizard
+      initialStyle={initialStyle}
+      content={content}
+      branding={branding}
+      platform="Instagram"
+      layouts={[
+        { id: "monument", name: "Monument", description: "Host beside title" },
+        { id: "feature", name: "Feature", description: "Single headliner" },
+      ]}
+      people={[
+        { _id: "p1", name: "Apostle Khy", title: "Apostle" },
+        { _id: "p2", name: "Jordan Franco", title: "Speaker" },
+      ]}
+      selectedLayout="auto"
+      onLayoutChange={onLayoutChange}
+      hostId=""
+      onHostChange={onHostChange}
+      speakerIds={[]}
+      onSpeakersChange={onSpeakersChange}
+      hasSubtitle
+      hasDescription
+      hasTags
+      onComplete={onComplete}
+      onCancel={() => {}}
+    />,
+  );
+
+  // Layout is the default opening section.
+  expect(screen.getByText("Monument")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("Feature"));
+  expect(onLayoutChange).toHaveBeenCalledWith("feature");
+
+  fireEvent.click(screen.getByText("Host & Speakers"));
+  fireEvent.change(screen.getByRole("combobox"), { target: { value: "p1" } });
+  expect(onHostChange).toHaveBeenCalledWith("p1");
+
+  const matches = screen.getAllByText("Jordan Franco — Speaker");
+  fireEvent.click(matches[matches.length - 1]);
+  expect(onSpeakersChange).toHaveBeenCalledWith(["p2"]);
+});
+
+test("shows a friendly message in Host & Speakers when the roster is empty", () => {
+  render(
+    <FlyerStyleWizard
+      initialStyle={initialStyle}
+      content={content}
+      branding={branding}
+      platform="Instagram"
+      people={[]}
+      hasSubtitle
+      hasDescription
+      hasTags
+      onComplete={() => {}}
+      onCancel={() => {}}
+    />,
+  );
+
+  fireEvent.click(screen.getByText("Host & Speakers"));
+  expect(screen.getByText(/No one in the roster yet/)).toBeInTheDocument();
 });

@@ -32,12 +32,25 @@ const ContentStudio = () => {
   const [loadingDrafts, setLoadingDrafts] = useState(false);
   const [error, setError] = useState("");
   const [typeSystemFonts, setTypeSystemFonts] = useState([]);
+  const [people, setPeople] = useState([]);
+  const [layouts, setLayouts] = useState([]);
+  const [hostId, setHostId] = useState("");
+  const [speakerIds, setSpeakerIds] = useState([]);
+  const [selectedLayout, setSelectedLayout] = useState("auto");
 
   useEffect(() => {
     client
       .get("/api/profile")
       .then((res) => setTypeSystemFonts(res.data?.type_system?.fonts || []))
       .catch(() => setTypeSystemFonts([]));
+    client
+      .get("/api/people")
+      .then((res) => setPeople(res.data || []))
+      .catch(() => setPeople([]));
+    client
+      .get("/api/flyers/layouts")
+      .then((res) => setLayouts(res.data || []))
+      .catch(() => setLayouts([]));
   }, []);
 
   const fetchDrafts = useCallback(async () => {
@@ -123,6 +136,9 @@ const ContentStudio = () => {
     setFlyerUrl(null);
     setSwitchNotice(null);
     setError("");
+    setHostId("");
+    setSpeakerIds([]);
+    setSelectedLayout("auto");
   };
 
   const describeUploadedFlyer = (details) => {
@@ -197,6 +213,9 @@ const ContentStudio = () => {
         style: style || finalStyle || undefined,
         background_url: backgroundUrl || undefined,
         platform,
+        host_id: hostId || undefined,
+        speaker_ids: speakerIds,
+        layout: selectedLayout === "auto" ? undefined : selectedLayout,
       });
       setFlyerUrl(res.data.social_url);
       if (style) setFinalStyle(style);
@@ -1006,6 +1025,14 @@ const ContentStudio = () => {
           branding={ministry?.branding}
           platform={platform}
           typeSystemFonts={typeSystemFonts}
+          people={people}
+          layouts={layouts}
+          hostId={hostId}
+          onHostChange={setHostId}
+          speakerIds={speakerIds}
+          onSpeakersChange={setSpeakerIds}
+          selectedLayout={selectedLayout}
+          onLayoutChange={setSelectedLayout}
           hasSubtitle={!!finalEvent?.subtitle}
           hasDescription={!!finalEvent?.description}
           hasTags={!!finalEvent?.theme_tags?.length}
