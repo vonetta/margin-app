@@ -13,8 +13,10 @@ test("accent_swap never changes primary, only reassigns accent/gold", () => {
   expect(variants.accent_swap.gold).toBe(colors.accent);
 });
 
-test("warm and cool produce different hex values than brand", () => {
+test("triad and complementary produce different hex values than brand, primary stays fixed", () => {
   const variants = deriveColorVariants(colors);
-  expect(variants.warm.accent).not.toBe(colors.accent);
-  expect(variants.cool.primary).not.toBe(colors.primary);
+  expect(variants.triad.accent).not.toBe(colors.accent);
+  expect(variants.triad.primary).toBe(colors.primary);
+  expect(variants.complementary.accent).not.toBe(colors.accent);
+  expect(variants.complementary.primary).toBe(colors.primary);
 });

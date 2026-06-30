@@ -18,7 +18,9 @@ const initialStyle = {
   cta_size: 34,
   logo_size: 84,
   logo_placement: "top-left",
+  logo_backing: "none",
   color_variant: "brand",
+  gradient_angle: 165,
   display_font: null,
   body_font: null,
   accent_font: null,
@@ -169,10 +171,10 @@ test("lets the user pick a color variant derived from brand colors", () => {
   );
 
   fireEvent.click(screen.getByText("Colors"));
-  fireEvent.click(screen.getByText("Warm"));
+  fireEvent.click(screen.getByText("Triad"));
   fireEvent.click(screen.getByText("✦ Generate flyer"));
 
-  expect(onComplete.mock.calls[0][0].color_variant).toBe("warm");
+  expect(onComplete.mock.calls[0][0].color_variant).toBe("triad");
 });
 
 test("lets the user pick one of the ministry's curated fonts", () => {
@@ -236,8 +238,58 @@ test("lets the user change logo size and placement when a logo exists", () => {
   );
 
   fireEvent.click(screen.getByText("Logo"));
-  fireEvent.click(screen.getByText("In the footer"));
+  fireEvent.click(screen.getByText("Footer, by the QR code"));
+  fireEvent.click(screen.getByText("White pill"));
   fireEvent.click(screen.getByText("✦ Generate flyer"));
 
-  expect(onComplete.mock.calls[0][0].logo_placement).toBe("footer");
+  expect(onComplete.mock.calls[0][0].logo_placement).toBe("footer-right");
+  expect(onComplete.mock.calls[0][0].logo_backing).toBe("pill");
+});
+
+test("always offers accent font suggestions, even when the ministry has none curated", () => {
+  const onComplete = jest.fn();
+  render(
+    <FlyerStyleWizard
+      initialStyle={initialStyle}
+      content={content}
+      branding={branding}
+      platform="Instagram"
+      typeSystemFonts={[{ name: "Cinzel", roles: ["display"], google_font: true }]}
+      hasSubtitle
+      hasDescription
+      hasTags
+      onComplete={onComplete}
+      onCancel={() => {}}
+    />,
+  );
+
+  fireEvent.click(screen.getByText("Typography"));
+  expect(screen.getByText("Great Vibes")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("Great Vibes"));
+  fireEvent.click(screen.getByText("✦ Generate flyer"));
+
+  expect(onComplete.mock.calls[0][0].accent_font).toBe("Great Vibes");
+});
+
+test("lets the user adjust the gradient direction", () => {
+  const onComplete = jest.fn();
+  render(
+    <FlyerStyleWizard
+      initialStyle={initialStyle}
+      content={content}
+      branding={branding}
+      platform="Instagram"
+      hasSubtitle
+      hasDescription
+      hasTags
+      onComplete={onComplete}
+      onCancel={() => {}}
+    />,
+  );
+
+  fireEvent.click(screen.getByText("Colors"));
+  fireEvent.change(screen.getByRole("slider"), { target: { value: "60" } });
+  fireEvent.click(screen.getByText("✦ Generate flyer"));
+
+  expect(onComplete.mock.calls[0][0].gradient_angle).toBe(60);
 });

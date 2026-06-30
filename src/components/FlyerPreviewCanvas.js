@@ -68,6 +68,7 @@ const FlyerPreviewCanvas = ({
     content.cost && { icon: "💰", value: content.cost },
   ].filter(Boolean);
 
+  const gradientAngle = style.gradient_angle ?? 165;
   const backgroundLayer = backgroundImageUrl
     ? {
         backgroundImage: `linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.25)), url(${backgroundImageUrl})`,
@@ -75,23 +76,39 @@ const FlyerPreviewCanvas = ({
         backgroundPosition: "center",
       }
     : {
-        background: `radial-gradient(circle at 25% 15%, rgba(255,255,255,0.18), transparent 45%), linear-gradient(165deg, ${primary}, ${accent}, ${gold})`,
+        background: `radial-gradient(circle at 25% 15%, rgba(255,255,255,0.18), transparent 45%), linear-gradient(${gradientAngle}deg, ${primary}, ${accent}, ${gold})`,
       };
 
   const logoUrl = branding.logo_url;
   const logoSize = px(style.logo_size || 84);
   const logoPlacement = style.logo_placement || "top-left";
+  const logoBacking = style.logo_backing || "none";
+  const onFooter = logoPlacement === "footer-left" || logoPlacement === "footer-right";
+  const needsInvert = onFooter && logoBacking === "none";
 
   const logoEl = logoUrl && (
-    <img
-      src={logoUrl}
-      alt="logo"
-      style={{
-        height: logoSize,
-        marginBottom: px(16),
-        filter: logoPlacement === "footer" ? "brightness(0) invert(1)" : "none",
-      }}
-    />
+    <span
+      style={
+        logoBacking === "none"
+          ? {}
+          : {
+              display: "inline-flex",
+              background: "#fff",
+              borderRadius: logoBacking === "circle" ? "50%" : 999,
+              padding: logoBacking === "circle" ? px(10) : `${px(8)}px ${px(16)}px`,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+            }
+      }
+    >
+      <img
+        src={logoUrl}
+        alt="logo"
+        style={{
+          height: logoSize,
+          filter: needsInvert ? "brightness(0) invert(1)" : "none",
+        }}
+      />
+    </span>
   );
 
   return (
@@ -128,6 +145,11 @@ const FlyerPreviewCanvas = ({
             zIndex: 1,
           }}
         />
+        {logoPlacement === "photo-corner" && logoEl && (
+          <div style={{ position: "absolute", top: px(20), right: px(20), zIndex: 3 }}>
+            {logoEl}
+          </div>
+        )}
         <div
           style={{
             position: "relative",
@@ -136,10 +158,11 @@ const FlyerPreviewCanvas = ({
             padding: `${px(48)}px ${px(48)}px`,
           }}
         >
-          {logoPlacement !== "footer" && logoEl && (
+          {(logoPlacement === "top-left" || logoPlacement === "top-center") && logoEl && (
             <div
               style={{
                 textAlign: logoPlacement === "top-center" ? "center" : "left",
+                marginBottom: px(16),
               }}
             >
               {logoEl}
@@ -283,22 +306,26 @@ const FlyerPreviewCanvas = ({
           borderTop: `${px(4)}px solid ${gold}`,
           display: "flex",
           alignItems: "center",
+          justifyContent: "space-between",
           gap: px(12),
           padding: `${px(18)}px ${px(48)}px`,
         }}
       >
-        {logoPlacement === "footer" && logoEl}
-        <div
-          style={{
-            fontFamily: displayFont || "Georgia, serif",
-            fontWeight: 800,
-            fontSize: px((style.cta_size || 34) * 0.82),
-            color: gold,
-            textTransform: "uppercase",
-          }}
-        >
-          {content.cta || "Call to action"}
+        <div style={{ display: "flex", alignItems: "center", gap: px(12) }}>
+          {logoPlacement === "footer-left" && logoEl}
+          <div
+            style={{
+              fontFamily: displayFont || "Georgia, serif",
+              fontWeight: 800,
+              fontSize: px((style.cta_size || 34) * 0.82),
+              color: gold,
+              textTransform: "uppercase",
+            }}
+          >
+            {content.cta || "Call to action"}
+          </div>
         </div>
+        {logoPlacement === "footer-right" && logoEl}
       </div>
     </div>
   );

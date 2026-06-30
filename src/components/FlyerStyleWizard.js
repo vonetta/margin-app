@@ -18,7 +18,24 @@ const SIZE_FIELDS = {
 const LOGO_PLACEMENTS = [
   { value: "top-left", label: "Top left" },
   { value: "top-center", label: "Top center" },
-  { value: "footer", label: "In the footer" },
+  { value: "photo-corner", label: "Corner of the photo" },
+  { value: "footer-left", label: "Footer, by the CTA" },
+  { value: "footer-right", label: "Footer, by the QR code" },
+];
+
+const LOGO_BACKINGS = [
+  { value: "none", label: "None" },
+  { value: "circle", label: "White circle" },
+  { value: "pill", label: "White pill" },
+];
+
+// A ministry's curated type_system won't always include a script/accent
+// font — the accent picker shouldn't just disappear when that's missing,
+// so these fill in as universally elegant options.
+const FALLBACK_ACCENT_FONTS = [
+  { name: "Great Vibes", roles: ["accent", "script"], google_font: true },
+  { name: "Pinyon Script", roles: ["accent", "script"], google_font: true },
+  { name: "Sacramento", roles: ["accent", "script"], google_font: true },
 ];
 
 const sectionTabStyle = (active) => ({
@@ -54,11 +71,14 @@ const FlyerStyleWizard = ({
   const [generatingBg, setGeneratingBg] = useState(false);
   const [bgError, setBgError] = useState("");
 
-  // Load every font the ministry has curated, once, so font swatches and
-  // the live preview can actually render in the real typeface rather than
-  // just naming it.
+  // Load every font the ministry has curated, plus the fallback accent
+  // fonts (cheap to always load, used only when the ministry has none of
+  // its own), once, so font swatches and the live preview can actually
+  // render in the real typeface rather than just naming it.
   useEffect(() => {
-    const googleFonts = typeSystemFonts.filter((f) => f.google_font !== false);
+    const googleFonts = [...typeSystemFonts, ...FALLBACK_ACCENT_FONTS].filter(
+      (f) => f.google_font !== false,
+    );
     if (!googleFonts.length) return;
     const id = "wizard-type-system-fonts";
     if (document.getElementById(id)) return;
@@ -73,13 +93,15 @@ const FlyerStyleWizard = ({
   }, [typeSystemFonts]);
 
   const sections = useMemo(() => {
-    const list = [{ key: "background", label: "Background" }];
-    if (typeSystemFonts.length) list.push({ key: "typography", label: "Typography" });
-    list.push({ key: "colors", label: "Colors" });
+    const list = [
+      { key: "background", label: "Background" },
+      { key: "typography", label: "Typography" },
+      { key: "colors", label: "Colors" },
+    ];
     if (branding?.logo_url) list.push({ key: "logo", label: "Logo" });
     list.push({ key: "sizing", label: "Sizing" });
     return list;
-  }, [typeSystemFonts, branding]);
+  }, [branding]);
 
   const sizeSteps = useMemo(() => {
     const list = ["title_size"];
@@ -142,9 +164,12 @@ const FlyerStyleWizard = ({
   };
 
   const displayFonts = typeSystemFonts.filter((f) => f.roles?.includes("display"));
-  const accentFonts = typeSystemFonts.filter(
+  const curatedAccentFonts = typeSystemFonts.filter(
     (f) => f.roles?.includes("accent") || f.roles?.includes("script"),
   );
+  const accentFonts = curatedAccentFonts.length
+    ? curatedAccentFonts
+    : FALLBACK_ACCENT_FONTS;
   const colorVariants = deriveColorVariants({
     primary: branding?.colors?.primary,
     accent: branding?.colors?.accent,
@@ -335,6 +360,19 @@ const FlyerStyleWizard = ({
                     </button>
                   ))}
                 </div>
+
+                <div style={{ fontSize: "12px", color: "var(--gray-600)", margin: "20px 0 6px" }}>
+                  Gradient direction (used when there's no background photo) — {style.gradient_angle}°
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={360}
+                  step={5}
+                  value={style.gradient_angle}
+                  onChange={(e) => set("gradient_angle", Number(e.target.value))}
+                  style={{ width: "100%" }}
+                />
               </div>
             )}
 
@@ -373,6 +411,30 @@ const FlyerStyleWizard = ({
                       }}
                     >
                       {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ fontSize: "12px", color: "var(--gray-600)", margin: "18px 0 6px" }}>
+                  Backing (helps it stand out on a photo or bold gradient)
+                </div>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  {LOGO_BACKINGS.map((b) => (
+                    <button
+                      key={b.value}
+                      onClick={() => set("logo_backing", b.value)}
+                      style={{
+                        flex: 1,
+                        padding: "9px 8px",
+                        borderRadius: "var(--border-radius)",
+                        border: `1.5px solid ${style.logo_backing === b.value ? "var(--navy)" : "var(--gray-300)"}`,
+                        background: style.logo_backing === b.value ? "#f4f8fb" : "transparent",
+                        fontSize: "12px",
+                        color: "var(--charcoal)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {b.label}
                     </button>
                   ))}
                 </div>

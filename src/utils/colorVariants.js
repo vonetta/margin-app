@@ -42,15 +42,18 @@ const hslToHex = ({ h, s, l }) => {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 };
 
-const rotateHue = (hex, degrees) => {
+// Re-hue a color to a target hue while keeping its OWN saturation/lightness
+// — so a derived accent/gold stays as vivid as the real one, instead of
+// inheriting primary's much darker, more muted tone.
+const rehueTo = (hex, targetHue) => {
   const hsl = hexToHsl(hex);
-  return hslToHex({ ...hsl, h: (hsl.h + degrees + 360) % 360 });
+  return hslToHex({ ...hsl, h: ((targetHue % 360) + 360) % 360 });
 };
 
 export const COLOR_VARIANT_LABELS = {
   brand: "Brand",
-  warm: "Warm",
-  cool: "Cool",
+  triad: "Triad",
+  complementary: "Complementary",
   accent_swap: "Gold-forward",
 };
 
@@ -58,17 +61,18 @@ export const deriveColorVariants = (colors = {}) => {
   const primary = colors.primary || "#1a1a2e";
   const accent = colors.accent || "#e94560";
   const gold = colors.gold || "#f5a623";
+  const primaryHue = hexToHsl(primary).h;
   return {
     brand: { primary, accent, gold },
-    warm: {
+    triad: {
       primary,
-      accent: rotateHue(accent, 18),
-      gold: rotateHue(gold, 10),
+      accent: rehueTo(accent, primaryHue + 120),
+      gold: rehueTo(gold, primaryHue + 240),
     },
-    cool: {
-      primary: rotateHue(primary, -15),
-      accent: rotateHue(accent, -15),
-      gold,
+    complementary: {
+      primary,
+      accent: rehueTo(accent, primaryHue + 180),
+      gold: rehueTo(gold, primaryHue + 150),
     },
     accent_swap: { primary, accent: gold, gold: accent },
   };
