@@ -187,6 +187,30 @@ test("cancel discards edits without saving", async () => {
   expect(client.put).not.toHaveBeenCalled();
 });
 
+test("deleting a task requires a confirm step before the DELETE call fires", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [{ _id: "t1", title: "Do the thing", status: "open", ministry_id: "ktm-test" }],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.delete.mockResolvedValue({ data: {} });
+
+  render(<Tasks />);
+  fireEvent.click(await screen.findByText("✕"));
+  expect(client.delete).not.toHaveBeenCalled();
+
+  fireEvent.click(await screen.findByText("Confirm"));
+  await waitFor(() =>
+    expect(client.delete).toHaveBeenCalledWith(
+      "/api/tasks/t1",
+      expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
+    ),
+  );
+});
+
 test("setting a weekly repeat sends the recurrence_rule", async () => {
   client.post.mockResolvedValue({ data: { _id: "t1" } });
   render(<Tasks />);

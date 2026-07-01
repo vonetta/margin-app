@@ -211,6 +211,90 @@ test("shows a task due today on the calendar grid and lets you mark it done from
   );
 });
 
+test("clicking Edit on an event opens the form pre-filled and saves via PUT to the event's own ministry", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/events/expanded") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "evt1",
+            title: "Weekly Prayer Call",
+            description: "Call in details in the group chat",
+            location: "Zoom",
+            start: "2026-06-02T18:00:00Z",
+            end: "2026-06-02T19:00:00Z",
+            all_day: false,
+            visibility: "internal",
+            recurrence_rule: "FREQ=WEEKLY",
+            occurrence_start: "2026-06-02T18:00:00Z",
+            occurrence_end: "2026-06-02T19:00:00Z",
+            status: "approved",
+            ministry_id: "ktm-test",
+          },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<Calendar />);
+
+  const dayCell = await screen.findByText("Weekly Prayer Call");
+  fireEvent.click(dayCell.closest("div[style*='cursor: pointer']"));
+
+  fireEvent.click(await screen.findByText("Edit"));
+
+  expect(await screen.findByDisplayValue("Weekly Prayer Call")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("Call in details in the group chat")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("Zoom")).toBeInTheDocument();
+  expect(screen.getByText("Edit event")).toBeInTheDocument();
+
+  const titleInput = screen.getByDisplayValue("Weekly Prayer Call");
+  fireEvent.change(titleInput, { target: { value: "Updated Prayer Call" } });
+  fireEvent.click(screen.getByText("Save changes"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/events/evt1",
+      expect.objectContaining({ title: "Updated Prayer Call", recurrence_rule: "FREQ=WEEKLY" }),
+      expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
+    ),
+  );
+});
+
+test("deleting an event requires a confirm step before the DELETE call fires", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/events/expanded") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "evt1",
+            title: "One-off Event",
+            start: "2026-06-02T18:00:00Z",
+            occurrence_start: "2026-06-02T18:00:00Z",
+            status: "approved",
+            ministry_id: "ktm-test",
+          },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.delete.mockResolvedValue({ data: {} });
+
+  render(<Calendar />);
+
+  const dayCell = await screen.findByText("One-off Event");
+  fireEvent.click(dayCell.closest("div[style*='cursor: pointer']"));
+
+  fireEvent.click(await screen.findByText("Delete"));
+  expect(client.delete).not.toHaveBeenCalled();
+
+  fireEvent.click(await screen.findByText("Confirm delete"));
+  await waitFor(() => expect(client.delete).toHaveBeenCalledWith("/api/events/evt1", expect.anything()));
+});
+
 test("website tab shows the public ICS feed URL for the active ministry", async () => {
   render(<Calendar />);
   fireEvent.click(screen.getByText("Website"));

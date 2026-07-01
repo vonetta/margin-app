@@ -82,6 +82,7 @@ const Tasks = () => {
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editForm, setEditForm] = useState(emptyForm);
   const [editSaving, setEditSaving] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const fetchTasks = useCallback(
     async (mine) => {
@@ -264,6 +265,7 @@ const Tasks = () => {
       await client.delete(`/api/tasks/${task._id}`, {
         headers: { "x-ministry-id": task.ministry_id },
       });
+      setConfirmDeleteId(null);
       if (editingTaskId === task._id) cancelEdit();
       await Promise.all([refreshMine(), refreshAssignedByMe()]);
     } catch (err) {
@@ -519,20 +521,53 @@ const Tasks = () => {
               Reopen
             </button>
           )}
-          <button
-            onClick={() => handleDelete(task)}
-            style={{
-              padding: "5px 10px",
-              background: "transparent",
-              color: "#c0504d",
-              border: "0.5px solid #e8b4b4",
-              borderRadius: "var(--border-radius)",
-              fontSize: "11px",
-              cursor: "pointer",
-            }}
-          >
-            ✕
-          </button>
+          {confirmDeleteId === task._id ? (
+            <>
+              <button
+                onClick={() => handleDelete(task)}
+                style={{
+                  padding: "5px 10px",
+                  background: "#c0504d",
+                  color: "var(--white)",
+                  border: "none",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                }}
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                style={{
+                  padding: "5px 10px",
+                  background: "transparent",
+                  color: "var(--gray-600)",
+                  border: "0.5px solid var(--gray-300)",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setConfirmDeleteId(task._id)}
+              style={{
+                padding: "5px 10px",
+                background: "transparent",
+                color: "#c0504d",
+                border: "0.5px solid #e8b4b4",
+                borderRadius: "var(--border-radius)",
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
     );

@@ -27,7 +27,12 @@ const Communications = () => {
   const [error, setError] = useState("");
   const [drafts, setDrafts] = useState([]);
   const [selectedDraft, setSelectedDraft] = useState(null);
+  const [confirmDeleteDraft, setConfirmDeleteDraft] = useState(false);
   const [loadingDrafts, setLoadingDrafts] = useState(false);
+  const [editingDraft, setEditingDraft] = useState(false);
+  const [editSubject, setEditSubject] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     client
@@ -133,10 +138,41 @@ const Communications = () => {
   const handleDeleteDraft = async (id) => {
     try {
       await client.delete(`/api/communications/drafts/${id}`);
+      setConfirmDeleteDraft(false);
       if (selectedDraft?._id === id) setSelectedDraft(null);
       await fetchDrafts();
     } catch (err) {
       setError("Failed to delete draft");
+    }
+  };
+
+  const startEditDraft = () => {
+    setEditSubject(selectedDraft.subject);
+    setEditBody(selectedDraft.body);
+    setEditingDraft(true);
+  };
+
+  const cancelEditDraft = () => setEditingDraft(false);
+
+  const handleSaveDraftEdit = async () => {
+    if (!editSubject.trim() || !editBody.trim()) {
+      setError("Subject and body can't be empty");
+      return;
+    }
+    setEditSaving(true);
+    setError("");
+    try {
+      const res = await client.put(`/api/communications/drafts/${selectedDraft._id}`, {
+        subject: editSubject.trim(),
+        body: editBody.trim(),
+      });
+      setSelectedDraft(res.data);
+      setDrafts((prev) => prev.map((d) => (d._id === res.data._id ? res.data : d)));
+      setEditingDraft(false);
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to save changes");
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -598,7 +634,11 @@ const Communications = () => {
                 return (
                   <div
                     key={draft._id}
-                    onClick={() => setSelectedDraft(draft)}
+                    onClick={() => {
+                      setSelectedDraft(draft);
+                      setConfirmDeleteDraft(false);
+                      setEditingDraft(false);
+                    }}
                     style={{
                       border: `0.5px solid ${isSelected ? "var(--navy)" : "var(--gray-300)"}`,
                       borderRadius: "var(--border-radius-lg)",
@@ -665,23 +705,91 @@ const Communications = () => {
                 {" → "}
                 {selectedDraft.recipient_name}
               </div>
-              <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--navy)" }}>
-                {selectedDraft.subject}
-              </div>
-              <div
-                style={{
-                  background: "var(--gray-100)",
-                  border: "0.5px solid var(--gray-300)",
-                  borderRadius: "var(--border-radius)",
-                  padding: "14px",
-                  fontSize: "12px",
-                  lineHeight: "1.8",
-                  color: "var(--charcoal)",
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                {selectedDraft.body}
-              </div>
+              {editingDraft ? (
+                <>
+                  <input
+                    type="text"
+                    value={editSubject}
+                    onChange={(e) => setEditSubject(e.target.value)}
+                    style={{
+                      padding: "8px 12px",
+                      border: "0.5px solid var(--gray-300)",
+                      borderRadius: "var(--border-radius)",
+                      fontSize: "13px",
+                      fontWeight: "600",
+                      color: "var(--navy)",
+                    }}
+                  />
+                  <textarea
+                    value={editBody}
+                    onChange={(e) => setEditBody(e.target.value)}
+                    rows={12}
+                    style={{
+                      background: "var(--gray-100)",
+                      border: "0.5px solid var(--gray-300)",
+                      borderRadius: "var(--border-radius)",
+                      padding: "14px",
+                      fontSize: "12px",
+                      lineHeight: "1.8",
+                      color: "var(--charcoal)",
+                      resize: "vertical",
+                    }}
+                  />
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      onClick={handleSaveDraftEdit}
+                      disabled={editSaving}
+                      style={{
+                        padding: "8px 16px",
+                        background: "var(--navy)",
+                        color: "var(--white)",
+                        border: "none",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {editSaving ? "Saving..." : "Save changes"}
+                    </button>
+                    <button
+                      onClick={cancelEditDraft}
+                      style={{
+                        padding: "8px 16px",
+                        background: "transparent",
+                        color: "var(--gray-600)",
+                        border: "0.5px solid var(--gray-300)",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--navy)" }}>
+                    {selectedDraft.subject}
+                  </div>
+                  <div
+                    style={{
+                      background: "var(--gray-100)",
+                      border: "0.5px solid var(--gray-300)",
+                      borderRadius: "var(--border-radius)",
+                      padding: "14px",
+                      fontSize: "12px",
+                      lineHeight: "1.8",
+                      color: "var(--charcoal)",
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {selectedDraft.body}
+                  </div>
+                </>
+              )}
+              {!editingDraft && (
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 <a
                   href={mailtoHref(selectedDraft.subject, selectedDraft.body, selectedDraft.recipient_email)}
@@ -715,20 +823,68 @@ const Communications = () => {
                   Copy text
                 </button>
                 <button
-                  onClick={() => handleDeleteDraft(selectedDraft._id)}
+                  onClick={startEditDraft}
                   style={{
                     padding: "8px 16px",
-                    background: "#fdf0f0",
-                    color: "#c0504d",
-                    border: "0.5px solid #e8b4b4",
+                    background: "transparent",
+                    color: "var(--navy)",
+                    border: "0.5px solid var(--navy)",
                     borderRadius: "var(--border-radius)",
                     fontSize: "12px",
                     cursor: "pointer",
                   }}
                 >
-                  ✕ Delete
+                  Edit
                 </button>
+                {confirmDeleteDraft ? (
+                  <>
+                    <button
+                      onClick={() => handleDeleteDraft(selectedDraft._id)}
+                      style={{
+                        padding: "8px 16px",
+                        background: "#c0504d",
+                        color: "var(--white)",
+                        border: "none",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Confirm delete
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteDraft(false)}
+                      style={{
+                        padding: "8px 16px",
+                        background: "transparent",
+                        color: "var(--gray-600)",
+                        border: "0.5px solid var(--gray-300)",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteDraft(true)}
+                    style={{
+                      padding: "8px 16px",
+                      background: "#fdf0f0",
+                      color: "#c0504d",
+                      border: "0.5px solid #e8b4b4",
+                      borderRadius: "var(--border-radius)",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ✕ Delete
+                  </button>
+                )}
               </div>
+              )}
             </div>
           )}
         </div>

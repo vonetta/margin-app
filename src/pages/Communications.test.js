@@ -4,6 +4,7 @@ import Communications from "./Communications";
 jest.mock("../api/client", () => ({
   get: jest.fn(),
   post: jest.fn(),
+  put: jest.fn(),
   delete: jest.fn(),
 }));
 const client = require("../api/client");
@@ -11,6 +12,7 @@ const client = require("../api/client");
 beforeEach(() => {
   client.get.mockReset();
   client.post.mockReset();
+  client.put.mockReset();
   client.delete.mockReset();
   client.get.mockImplementation((url) => {
     if (url === "/api/people") {
@@ -68,6 +70,64 @@ test("sends the chosen email type and recipient through to the chat request", as
   );
 
   expect(await screen.findByText("Confirming Your Ministry Assignment")).toBeInTheDocument();
+});
+
+test("editing a saved draft's subject and body calls PUT with the updated fields", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/people") return Promise.resolve({ data: [] });
+    if (url === "/api/communications/drafts") {
+      return Promise.resolve({
+        data: [{ _id: "d1", type: "invitation", recipient_name: "Someone", subject: "Original Subject", body: "Original body" }],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({
+    data: { _id: "d1", type: "invitation", recipient_name: "Someone", subject: "New Subject", body: "New body" },
+  });
+
+  render(<Communications />);
+  fireEvent.click(await screen.findByText("Draft queue"));
+
+  fireEvent.click(await screen.findByText("Edit"));
+
+  const subjectInput = await screen.findByDisplayValue("Original Subject");
+  fireEvent.change(subjectInput, { target: { value: "New Subject" } });
+  const bodyTextarea = screen.getByDisplayValue("Original body");
+  fireEvent.change(bodyTextarea, { target: { value: "New body" } });
+
+  fireEvent.click(screen.getByText("Save changes"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith("/api/communications/drafts/d1", {
+      subject: "New Subject",
+      body: "New body",
+    }),
+  );
+
+  expect(await screen.findByText("New Subject")).toBeInTheDocument();
+});
+
+test("deleting a saved draft requires a confirm step before the DELETE call fires", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/people") return Promise.resolve({ data: [] });
+    if (url === "/api/communications/drafts") {
+      return Promise.resolve({
+        data: [{ _id: "d1", type: "invitation", recipient_name: "Someone", subject: "An Invitation", body: "Dear..." }],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.delete.mockResolvedValue({ data: {} });
+
+  render(<Communications />);
+  fireEvent.click(await screen.findByText("Draft queue"));
+
+  fireEvent.click(await screen.findByText("✕ Delete"));
+  expect(client.delete).not.toHaveBeenCalled();
+
+  fireEvent.click(await screen.findByText("Confirm delete"));
+  await waitFor(() => expect(client.delete).toHaveBeenCalledWith("/api/communications/drafts/d1"));
 });
 
 test("saves the finalized email to the draft queue", async () => {

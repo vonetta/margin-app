@@ -36,6 +36,51 @@ const buildRecurrenceRule = (recurrence) => {
   return parts.join(";");
 };
 
+// Inverse of buildRecurrenceRule — pulls the recurrence UI's fields back
+// out of a stored rule string so editing an existing event opens the
+// form pre-filled with its actual pattern instead of blank.
+const parseRecurrenceRule = (rule) => {
+  if (!rule) return { ...emptyRecurrence };
+  const freqMatch = rule.match(/FREQ=(\w+)/);
+  const intervalMatch = rule.match(/INTERVAL=(\d+)/);
+  const bydayMatch = rule.match(/BYDAY=([\w,]+)/);
+  const untilMatch = rule.match(/UNTIL=(\d{8})/);
+  const countMatch = rule.match(/COUNT=(\d+)/);
+
+  let endMode = "never";
+  let until = "";
+  let count = 4;
+  if (untilMatch) {
+    endMode = "until";
+    const raw = untilMatch[1];
+    until = `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+  } else if (countMatch) {
+    endMode = "count";
+    count = Number(countMatch[1]);
+  }
+
+  return {
+    freq: freqMatch ? freqMatch[1] : "",
+    interval: intervalMatch ? Number(intervalMatch[1]) : 1,
+    byday: bydayMatch ? bydayMatch[1].split(",") : [],
+    endMode,
+    until,
+    count,
+  };
+};
+
+// Local (not UTC) date/time components — the create form builds Date
+// objects by interpreting `${date}T${time}` as local time, so reversing
+// that with toISOString() would shift the date for anyone not in UTC.
+const toLocalDateInputValue = (date) => {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const toLocalTimeInputValue = (date) => {
+  const d = new Date(date);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
 const describeRecurrence = (event) => {
   if (!event.recurrence_rule) return null;
   const rule = event.recurrence_rule;
@@ -105,6 +150,8 @@ const Calendar = () => {
   const [team, setTeam] = useState([]);
   const [visibleTo, setVisibleTo] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const gridStart = useMemo(() => startOfCalendarGrid(monthDate), [monthDate]);
   const gridDays = useMemo(
@@ -246,6 +293,7 @@ const Calendar = () => {
     setForm(emptyForm);
     setRecurrence(emptyRecurrence);
     setVisibleTo([]);
+    setEditingEvent(null);
     setError("");
     setShowForm(false);
   };
@@ -254,7 +302,29 @@ const Calendar = () => {
     setVisibleTo((v) => (v.includes(userId) ? v.filter((id) => id !== userId) : [...v, userId]));
   };
 
-  const handleCreate = async () => {
+  // occ is one occurrence-expanded event from selectedDayEvents — its
+  // start/end/recurrence_rule fields are still the base event's real
+  // (non-occurrence) values, so pre-filling from them edits the whole
+  // series, not just the one day clicked into.
+  const startEditEvent = (occ) => {
+    setEditingEvent({ _id: occ._id, ministry_id: occ.ministry_id });
+    setForm({
+      title: occ.title,
+      description: occ.description || "",
+      location: occ.location || "",
+      startDate: toLocalDateInputValue(occ.start),
+      startTime: occ.all_day ? "" : toLocalTimeInputValue(occ.start),
+      endTime: !occ.all_day && occ.end ? toLocalTimeInputValue(occ.end) : "",
+      all_day: !!occ.all_day,
+      visibility: occ.visibility,
+    });
+    setRecurrence(parseRecurrenceRule(occ.recurrence_rule));
+    setVisibleTo(occ.visible_to || []);
+    setError("");
+    setShowForm(true);
+  };
+
+  const handleSave = async () => {
     if (!form.title.trim() || !form.startDate) {
       setError("Title and start date are required");
       return;
@@ -270,7 +340,7 @@ const Calendar = () => {
           ? new Date(`${form.startDate}T${form.endTime}`).toISOString()
           : undefined;
 
-      await client.post("/api/events", {
+      const payload = {
         title: form.title.trim(),
         description: form.description.trim() || undefined,
         location: form.location.trim() || undefined,
@@ -280,11 +350,26 @@ const Calendar = () => {
         visibility: form.visibility,
         visible_to: form.visibility === "internal" ? visibleTo : undefined,
         recurrence_rule: buildRecurrenceRule(recurrence) || undefined,
-      });
+      };
+
+      if (editingEvent) {
+        // Edits target the event's own ministry, which may not be the
+        // currently active one — the calendar aggregates across every
+        // ministry the user belongs to.
+        await client.put(`/api/events/${editingEvent._id}`, payload, {
+          headers: { "x-ministry-id": editingEvent.ministry_id },
+        });
+      } else {
+        await client.post("/api/events", payload);
+      }
       resetForm();
       await fetchOccurrences();
     } catch (err) {
-      setError(err.response?.data?.errors?.[0]?.msg || err.response?.data?.error || "Failed to create event");
+      setError(
+        err.response?.data?.errors?.[0]?.msg ||
+          err.response?.data?.error ||
+          `Failed to ${editingEvent ? "save" : "create"} event`,
+      );
     } finally {
       setSaving(false);
     }
@@ -293,6 +378,7 @@ const Calendar = () => {
   const handleDelete = async (id, mId) => {
     try {
       await client.delete(`/api/events/${id}`, { headers: { "x-ministry-id": mId } });
+      setConfirmDeleteId(null);
       await fetchOccurrences();
       setSelectedDay(null);
     } catch (err) {
@@ -364,7 +450,7 @@ const Calendar = () => {
           </p>
         </div>
         <button
-          onClick={() => setShowForm((s) => !s)}
+          onClick={() => (showForm ? resetForm() : setShowForm(true))}
           style={{
             padding: "8px 16px",
             background: "var(--navy)",
@@ -434,11 +520,21 @@ const Calendar = () => {
             gap: "12px",
           }}
         >
+          <div style={{ fontFamily: "Cinzel, serif", fontSize: "11px", color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            {editingEvent ? "Edit event" : "New event"}
+          </div>
           {memberships.length > 1 && (
             <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>
-              Creating in:{" "}
-              <span style={{ fontWeight: "600", color: colorFor(ministryId) }}>{nameFor(ministryId)}</span>
-              {" — switch ministries from the sidebar to add an event to a different one"}
+              {editingEvent ? (
+                <>
+                  Editing in: <span style={{ fontWeight: "600", color: colorFor(editingEvent.ministry_id) }}>{nameFor(editingEvent.ministry_id)}</span>
+                </>
+              ) : (
+                <>
+                  Creating in: <span style={{ fontWeight: "600", color: colorFor(ministryId) }}>{nameFor(ministryId)}</span>
+                  {" — switch ministries from the sidebar to add an event to a different one"}
+                </>
+              )}
             </div>
           )}
           <div style={{ display: "flex", gap: "8px" }}>
@@ -717,9 +813,9 @@ const Calendar = () => {
             </div>
           )}
 
-          <div>
+          <div style={{ display: "flex", gap: "8px" }}>
             <button
-              onClick={handleCreate}
+              onClick={handleSave}
               disabled={saving}
               style={{
                 padding: "8px 16px",
@@ -732,8 +828,24 @@ const Calendar = () => {
                 cursor: "pointer",
               }}
             >
-              {saving ? "Saving..." : "Add to calendar"}
+              {saving ? "Saving..." : editingEvent ? "Save changes" : "Add to calendar"}
             </button>
+            {editingEvent && (
+              <button
+                onClick={resetForm}
+                style={{
+                  padding: "8px 16px",
+                  background: "transparent",
+                  color: "var(--gray-600)",
+                  border: "0.5px solid var(--gray-300)",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -895,21 +1007,69 @@ const Calendar = () => {
                       : ""}
                   </div>
                   {occ.location && <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>{occ.location}</div>}
-                  <button
-                    onClick={() => handleDelete(occ._id, occ.ministry_id)}
-                    style={{
-                      marginTop: "6px",
-                      padding: "3px 8px",
-                      background: "transparent",
-                      border: "0.5px solid #e8b4b4",
-                      color: "#c0504d",
-                      borderRadius: "var(--border-radius)",
-                      fontSize: "10px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Delete
-                  </button>
+                  <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
+                    <button
+                      onClick={() => startEditEvent(occ)}
+                      style={{
+                        padding: "3px 8px",
+                        background: "transparent",
+                        border: "0.5px solid var(--navy)",
+                        color: "var(--navy)",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "10px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Edit
+                    </button>
+                    {confirmDeleteId === occ._id ? (
+                      <>
+                        <button
+                          onClick={() => handleDelete(occ._id, occ.ministry_id)}
+                          style={{
+                            padding: "3px 8px",
+                            background: "#c0504d",
+                            border: "none",
+                            color: "var(--white)",
+                            borderRadius: "var(--border-radius)",
+                            fontSize: "10px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Confirm delete
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(null)}
+                          style={{
+                            padding: "3px 8px",
+                            background: "transparent",
+                            border: "0.5px solid var(--gray-300)",
+                            color: "var(--gray-600)",
+                            borderRadius: "var(--border-radius)",
+                            fontSize: "10px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteId(occ._id)}
+                        style={{
+                          padding: "3px 8px",
+                          background: "transparent",
+                          border: "0.5px solid #e8b4b4",
+                          color: "#c0504d",
+                          borderRadius: "var(--border-radius)",
+                          fontSize: "10px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
               {selectedDayTasks.map((task) => (
