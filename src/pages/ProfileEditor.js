@@ -27,6 +27,12 @@ const ProfileEditor = () => {
   const [creatingSub, setCreatingSub] = useState(false);
   const [orgOverview, setOrgOverview] = useState({});
 
+  const [socialAccounts, setSocialAccounts] = useState([]);
+  const [loadingSocial, setLoadingSocial] = useState(false);
+  const [connectingSocial, setConnectingSocial] = useState(false);
+  const [socialStatus, setSocialStatus] = useState(null);
+  const [confirmDisconnectId, setConfirmDisconnectId] = useState(null);
+
   const membership = user?.ministries?.find(
     (m) => m.ministry_id === ministryId,
   );
@@ -57,6 +63,58 @@ const ProfileEditor = () => {
   useEffect(() => {
     if (tab === "sub-ministries" && isAdmin) fetchSubMinistries();
   }, [tab, isAdmin, fetchSubMinistries]);
+
+  // The Meta OAuth callback redirects the browser back here with
+  // ?social=connected|denied|invalid_state|error — surface that once,
+  // land on the right tab, then strip it from the URL so refreshing
+  // doesn't re-show a stale status.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("social");
+    if (status) {
+      setSocialStatus(status);
+      setTab("social");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  const fetchSocialAccounts = useCallback(async () => {
+    setLoadingSocial(true);
+    try {
+      const res = await client.get("/api/social/accounts");
+      setSocialAccounts(res.data);
+    } catch (err) {
+      console.error("Failed to load connected social accounts");
+    } finally {
+      setLoadingSocial(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "social" && isAdmin) fetchSocialAccounts();
+  }, [tab, isAdmin, fetchSocialAccounts]);
+
+  const handleConnectSocial = async () => {
+    setConnectingSocial(true);
+    setError("");
+    try {
+      const res = await client.get("/api/social/connect");
+      window.location.href = res.data.url;
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to start Meta connection");
+      setConnectingSocial(false);
+    }
+  };
+
+  const handleDisconnectSocial = async (id) => {
+    try {
+      await client.delete(`/api/social/accounts/${id}`);
+      setConfirmDisconnectId(null);
+      await fetchSocialAccounts();
+    } catch (err) {
+      setError("Failed to disconnect account");
+    }
+  };
 
   const createSubMinistry = async () => {
     if (!newSubId.trim() || !newSubName.trim()) return;
@@ -285,7 +343,10 @@ const ProfileEditor = () => {
           { key: "phrases", label: "Phrases" },
           { key: "feedback", label: "Feedback" },
           ...(isAdmin
-            ? [{ key: "sub-ministries", label: "Sub-ministries" }]
+            ? [
+                { key: "sub-ministries", label: "Sub-ministries" },
+                { key: "social", label: "Social accounts" },
+              ]
             : []),
         ].map((t) => (
           <button
@@ -649,6 +710,145 @@ const ProfileEditor = () => {
                         </div>
                       ))}
                     </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === "social" && isAdmin && (
+        <div style={{ maxWidth: "600px" }}>
+          {socialStatus && (
+            <div
+              style={{
+                marginBottom: "16px",
+                padding: "10px 12px",
+                borderRadius: "var(--border-radius)",
+                fontSize: "12px",
+                background: socialStatus === "connected" ? "#eef7ee" : "#fdf0f0",
+                border: `0.5px solid ${socialStatus === "connected" ? "#b4d8b4" : "#e8b4b4"}`,
+                color: socialStatus === "connected" ? "#3a7a4a" : "#c0504d",
+              }}
+            >
+              {socialStatus === "connected" && "Connected! Any Facebook Pages you manage (and their linked Instagram accounts) now show up below."}
+              {socialStatus === "denied" && "Connection cancelled — nothing was changed."}
+              {socialStatus === "invalid_state" && "That connection link expired or was invalid. Try connecting again."}
+              {socialStatus === "error" && "Something went wrong completing the connection. Try again, or check that the Page has an admin role for this Meta account."}
+            </div>
+          )}
+
+          <div style={cardStyle}>
+            <label style={labelStyle}>Connect a Facebook Page</label>
+            <p
+              style={{
+                fontSize: "11px",
+                color: "var(--gray-500)",
+                marginBottom: "14px",
+                lineHeight: 1.6,
+              }}
+            >
+              Connects through Meta's own login — Margin never sees your
+              Facebook password. Any Instagram Business account linked to
+              the Page you approve comes along with it automatically.
+            </p>
+            <button
+              onClick={handleConnectSocial}
+              disabled={connectingSocial}
+              style={{
+                padding: "8px 16px",
+                background: connectingSocial ? "var(--gray-400)" : "var(--primary)",
+                color: "var(--white)",
+                border: "none",
+                borderRadius: "var(--border-radius)",
+                fontSize: "12px",
+                fontWeight: "500",
+              }}
+            >
+              {connectingSocial ? "Redirecting to Meta..." : "Connect with Facebook"}
+            </button>
+          </div>
+
+          <div style={cardStyle}>
+            <label style={labelStyle}>
+              Connected accounts ({socialAccounts.length})
+            </label>
+            {loadingSocial ? (
+              <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>Loading...</div>
+            ) : socialAccounts.length === 0 ? (
+              <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
+                Nothing connected yet.
+              </div>
+            ) : (
+              socialAccounts.map((acct, i) => (
+                <div
+                  key={acct._id}
+                  style={{
+                    padding: "10px 0",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    borderBottom: i < socialAccounts.length - 1 ? "0.5px solid var(--gray-300)" : "none",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: "12px", fontWeight: "500", color: "var(--charcoal)" }}>
+                      {acct.page_name}
+                      {acct.status !== "active" && (
+                        <span style={{ marginLeft: "6px", fontSize: "10px", color: "#c0504d" }}>
+                          ({acct.status} — reconnect needed)
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>
+                      Facebook
+                      {acct.instagram_username ? ` · Instagram @${acct.instagram_username}` : " · No Instagram linked"}
+                    </div>
+                  </div>
+                  {confirmDisconnectId === acct._id ? (
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <button
+                        onClick={() => handleDisconnectSocial(acct._id)}
+                        style={{
+                          padding: "5px 10px",
+                          background: "#c0504d",
+                          color: "var(--white)",
+                          border: "none",
+                          borderRadius: "var(--border-radius)",
+                          fontSize: "11px",
+                        }}
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        onClick={() => setConfirmDisconnectId(null)}
+                        style={{
+                          padding: "5px 10px",
+                          background: "transparent",
+                          color: "var(--gray-600)",
+                          border: "0.5px solid var(--gray-300)",
+                          borderRadius: "var(--border-radius)",
+                          fontSize: "11px",
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDisconnectId(acct._id)}
+                      style={{
+                        padding: "5px 10px",
+                        background: "transparent",
+                        color: "#c0504d",
+                        border: "0.5px solid #e8b4b4",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "11px",
+                      }}
+                    >
+                      Disconnect
+                    </button>
                   )}
                 </div>
               ))

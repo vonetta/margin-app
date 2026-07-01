@@ -64,6 +64,84 @@ test("shows aggregate counts next to each sub-ministry, without exposing individ
   expect(screen.getByText("open tasks")).toBeInTheDocument();
 });
 
+test("connecting a social account navigates the browser to Meta's OAuth URL", async () => {
+  const originalLocation = window.location;
+  delete window.location;
+  window.location = { ...originalLocation, href: "", search: "" };
+
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile") return Promise.resolve({ data: { voice_profile: {} } });
+    if (url === "/api/ministry/sub-ministries") return Promise.resolve({ data: [] });
+    if (url === "/api/ministry/org-overview") return Promise.resolve({ data: [] });
+    if (url === "/api/social/accounts") return Promise.resolve({ data: [] });
+    if (url === "/api/social/connect") {
+      return Promise.resolve({ data: { url: "https://www.facebook.com/v19.0/dialog/oauth?client_id=123" } });
+    }
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<ProfileEditor />);
+  await screen.findByText("Voice");
+  fireEvent.click(screen.getByText("Social accounts"));
+
+  fireEvent.click(await screen.findByText("Connect with Facebook"));
+
+  await waitFor(() =>
+    expect(window.location.href).toBe("https://www.facebook.com/v19.0/dialog/oauth?client_id=123"),
+  );
+
+  window.location = originalLocation;
+});
+
+test("lists connected social accounts and disconnects one after confirming", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile") return Promise.resolve({ data: { voice_profile: {} } });
+    if (url === "/api/ministry/sub-ministries") return Promise.resolve({ data: [] });
+    if (url === "/api/ministry/org-overview") return Promise.resolve({ data: [] });
+    if (url === "/api/social/accounts") {
+      return Promise.resolve({
+        data: [
+          { _id: "acct1", page_name: "KTM Main Page", instagram_username: "ktm_ministries", status: "active" },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.delete.mockResolvedValue({ data: { deleted: true } });
+
+  render(<ProfileEditor />);
+  await screen.findByText("Voice");
+  fireEvent.click(screen.getByText("Social accounts"));
+
+  expect(await screen.findByText("KTM Main Page")).toBeInTheDocument();
+  expect(screen.getByText(/@ktm_ministries/)).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("Disconnect"));
+  expect(client.delete).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByText("Confirm"));
+  await waitFor(() => expect(client.delete).toHaveBeenCalledWith("/api/social/accounts/acct1"));
+});
+
+test("shows a status message and lands on the Social tab after a Meta redirect back", async () => {
+  const originalLocation = window.location;
+  delete window.location;
+  window.location = { ...originalLocation, search: "?social=connected", pathname: "/profile" };
+
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile") return Promise.resolve({ data: { voice_profile: {} } });
+    if (url === "/api/social/accounts") return Promise.resolve({ data: [] });
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<ProfileEditor />);
+
+  expect(await screen.findByText(/Connected!/)).toBeInTheDocument();
+  expect(screen.getByText("Connected accounts (0)")).toBeInTheDocument();
+
+  window.location = originalLocation;
+});
+
 test("still renders the sub-ministry even if the overview fetch fails", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/profile") {
