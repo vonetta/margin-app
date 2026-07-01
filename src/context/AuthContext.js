@@ -69,6 +69,26 @@ export const AuthProvider = ({ children }) => {
     return user;
   };
 
+  // Shared by direct self-registration and invite acceptance — both end
+  // with the same "create account, establish a session" shape as login.
+  const register = async (payload) => {
+    const res = await client.post("/api/auth/register", payload);
+    const { token, user } = res.data;
+    const targetMinistryId = user.ministries[0]?.ministry_id;
+
+    localStorage.setItem("margin_token", token);
+    localStorage.setItem("margin_user", JSON.stringify(user));
+    localStorage.setItem("margin_ministry_id", targetMinistryId);
+
+    setUser(user);
+    setMinistryId(targetMinistryId);
+
+    await loadMinistryBranding(targetMinistryId);
+    await refreshUser();
+
+    return user;
+  };
+
   const logout = () => {
     localStorage.removeItem("margin_token");
     localStorage.removeItem("margin_user");
@@ -93,6 +113,7 @@ export const AuthProvider = ({ children }) => {
         ministry,
         loading,
         login,
+        register,
         logout,
         switchMinistry,
         refreshUser,

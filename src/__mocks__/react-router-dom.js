@@ -6,6 +6,7 @@
 module.exports = {
   useNavigate: () => () => {},
   useLocation: () => ({ pathname: "/" }),
+  useParams: () => ({}),
   Link: ({ children }) => children,
   MemoryRouter: ({ children }) => children,
 };

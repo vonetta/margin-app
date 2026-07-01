@@ -14,6 +14,7 @@ import ProfileEditor from "./pages/ProfileEditor";
 import FlyerGenerator from "./pages/FlyerGenerator";
 import People from "./pages/People";
 import Onboarding from "./pages/Onboarding";
+import JoinInvite from "./pages/JoinInvite";
 
 const AppShell = ({ children }) => (
   <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -28,6 +29,7 @@ const App = () => {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/join/:token" element={<JoinInvite />} />
           <Route
             path="/"
             element={
