@@ -27,6 +27,21 @@ const buildTaskRecurrenceRule = (freq, interval) => {
   return parts.join(";");
 };
 
+// Inverse of buildTaskRecurrenceRule — pulls FREQ/INTERVAL back out of a
+// stored rule string so the edit form can be pre-filled with a task's
+// current recurrence instead of always opening blank.
+const parseTaskRecurrenceRule = (rule) => {
+  if (!rule) return { repeatFreq: "", repeatInterval: 1 };
+  const freqMatch = rule.match(/FREQ=(\w+)/);
+  const intervalMatch = rule.match(/INTERVAL=(\d+)/);
+  return {
+    repeatFreq: freqMatch ? freqMatch[1] : "",
+    repeatInterval: intervalMatch ? Number(intervalMatch[1]) : 1,
+  };
+};
+
+const toDateInputValue = (dateStr) => (dateStr ? new Date(dateStr).toISOString().slice(0, 10) : "");
+
 const describeRecurrence = (rule) => {
   if (!rule) return null;
   if (rule.includes("FREQ=DAILY")) return "↻ Daily";
@@ -64,6 +79,9 @@ const Tasks = () => {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [editForm, setEditForm] = useState(emptyForm);
+  const [editSaving, setEditSaving] = useState(false);
 
   const fetchTasks = useCallback(
     async (mine) => {
@@ -170,6 +188,55 @@ const Tasks = () => {
     }
   };
 
+  const startEdit = (task) => {
+    setEditingTaskId(task._id);
+    setEditForm({
+      title: task.title,
+      description: task.description || "",
+      dueDate: toDateInputValue(task.due_date),
+      assignedTo: task.assigned_to,
+      ...parseTaskRecurrenceRule(task.recurrence_rule),
+    });
+    setError("");
+  };
+
+  const cancelEdit = () => {
+    setEditingTaskId(null);
+    setEditForm(emptyForm);
+  };
+
+  const handleSaveEdit = async (task) => {
+    if (!editForm.title.trim() || !editForm.assignedTo) {
+      setError("Title and an assignee are required");
+      return;
+    }
+    if (editForm.repeatFreq && !editForm.dueDate) {
+      setError("A recurring task needs a due date to anchor the recurrence");
+      return;
+    }
+    setEditSaving(true);
+    setError("");
+    try {
+      await client.put(
+        `/api/tasks/${task._id}`,
+        {
+          title: editForm.title.trim(),
+          description: editForm.description.trim() || undefined,
+          due_date: editForm.dueDate ? new Date(editForm.dueDate).toISOString() : undefined,
+          assigned_to: editForm.assignedTo,
+          recurrence_rule: buildTaskRecurrenceRule(editForm.repeatFreq, editForm.repeatInterval) || undefined,
+        },
+        { headers: { "x-ministry-id": task.ministry_id } },
+      );
+      cancelEdit();
+      await Promise.all([refreshMine(), refreshAssignedByMe()]);
+    } catch (err) {
+      setError(err.response?.data?.errors?.[0]?.msg || err.response?.data?.error || "Failed to save changes");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const handleComplete = async (task) => {
     try {
       await client.put(`/api/tasks/${task._id}/complete`, null, {
@@ -197,6 +264,7 @@ const Tasks = () => {
       await client.delete(`/api/tasks/${task._id}`, {
         headers: { "x-ministry-id": task.ministry_id },
       });
+      if (editingTaskId === task._id) cancelEdit();
       await Promise.all([refreshMine(), refreshAssignedByMe()]);
     } catch (err) {
       setError("Failed to delete task");
@@ -206,7 +274,153 @@ const Tasks = () => {
   const visibleMine = myTasks.filter((t) => (showDone ? true : t.status === "open"));
   const openCount = myTasks.filter((t) => t.status === "open").length;
 
+  const renderEditForm = (task) => (
+    <div
+      key={task._id}
+      style={{
+        background: "var(--white)",
+        border: "1px solid var(--navy)",
+        borderRadius: "var(--border-radius-lg)",
+        padding: "14px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "10px",
+      }}
+    >
+      <input
+        type="text"
+        placeholder="Task title"
+        value={editForm.title}
+        onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+        style={{
+          padding: "8px 12px",
+          border: "0.5px solid var(--gray-300)",
+          borderRadius: "var(--border-radius)",
+          fontSize: "13px",
+        }}
+      />
+      <textarea
+        placeholder="Description (optional)"
+        value={editForm.description}
+        onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+        rows={2}
+        style={{
+          padding: "8px 12px",
+          border: "0.5px solid var(--gray-300)",
+          borderRadius: "var(--border-radius)",
+          fontSize: "13px",
+          resize: "vertical",
+        }}
+      />
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <select
+          value={editForm.assignedTo}
+          onChange={(e) => setEditForm({ ...editForm, assignedTo: e.target.value })}
+          style={{
+            padding: "8px 12px",
+            border: "0.5px solid var(--gray-300)",
+            borderRadius: "var(--border-radius)",
+            fontSize: "13px",
+            flex: 1,
+            minWidth: "180px",
+          }}
+        >
+          <option value="">Assign to...</option>
+          {team.map((member) => (
+            <option key={member._id} value={member._id}>
+              {member.name}
+            </option>
+          ))}
+        </select>
+        <input
+          type="date"
+          value={editForm.dueDate}
+          onChange={(e) => setEditForm({ ...editForm, dueDate: e.target.value })}
+          style={{
+            padding: "8px 12px",
+            border: "0.5px solid var(--gray-300)",
+            borderRadius: "var(--border-radius)",
+            fontSize: "13px",
+          }}
+        />
+      </div>
+      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <select
+          value={editForm.repeatFreq}
+          onChange={(e) => setEditForm({ ...editForm, repeatFreq: e.target.value })}
+          style={{
+            padding: "6px 10px",
+            border: "0.5px solid var(--gray-300)",
+            borderRadius: "var(--border-radius)",
+            fontSize: "12px",
+          }}
+        >
+          {REPEAT_FREQUENCIES.map((f) => (
+            <option key={f.value} value={f.value}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+        {editForm.repeatFreq && (
+          <>
+            <span style={{ fontSize: "11px", color: "var(--gray-500)" }}>every</span>
+            <input
+              type="number"
+              min={1}
+              value={editForm.repeatInterval}
+              onChange={(e) => setEditForm({ ...editForm, repeatInterval: Number(e.target.value) || 1 })}
+              style={{
+                width: "50px",
+                padding: "6px 8px",
+                border: "0.5px solid var(--gray-300)",
+                borderRadius: "var(--border-radius)",
+                fontSize: "12px",
+              }}
+            />
+            <span style={{ fontSize: "11px", color: "var(--gray-500)" }}>
+              {editForm.repeatFreq === "DAILY" ? "day(s)" : editForm.repeatFreq === "WEEKLY" ? "week(s)" : "month(s)"}
+            </span>
+          </>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: "8px" }}>
+        <button
+          onClick={() => handleSaveEdit(task)}
+          disabled={editSaving}
+          style={{
+            padding: "6px 14px",
+            background: "var(--navy)",
+            color: "var(--white)",
+            border: "none",
+            borderRadius: "var(--border-radius)",
+            fontSize: "12px",
+            fontWeight: "500",
+            cursor: "pointer",
+          }}
+        >
+          {editSaving ? "Saving..." : "Save"}
+        </button>
+        <button
+          onClick={cancelEdit}
+          style={{
+            padding: "6px 14px",
+            background: "transparent",
+            color: "var(--gray-600)",
+            border: "0.5px solid var(--gray-300)",
+            borderRadius: "var(--border-radius)",
+            fontSize: "12px",
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+
   const renderTask = (task, { showAssignee } = {}) => {
+    if (editingTaskId === task._id) return renderEditForm(task);
+
     const due = formatDue(task.due_date);
     return (
       <div
@@ -224,7 +438,11 @@ const Tasks = () => {
           opacity: task.status === "done" ? 0.6 : 1,
         }}
       >
-        <div>
+        <div
+          onClick={() => startEdit(task)}
+          style={{ cursor: "pointer", flex: 1 }}
+          title="Click to view and edit details"
+        >
           {memberships.length > 1 && (
             <div style={{ fontSize: "9px", color: colorFor(task.ministry_id), fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
               {nameFor(task.ministry_id)}
@@ -256,6 +474,20 @@ const Tasks = () => {
           </div>
         </div>
         <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+          <button
+            onClick={() => startEdit(task)}
+            style={{
+              padding: "5px 10px",
+              background: "transparent",
+              color: "var(--navy)",
+              border: "0.5px solid var(--navy)",
+              borderRadius: "var(--border-radius)",
+              fontSize: "11px",
+              cursor: "pointer",
+            }}
+          >
+            Edit
+          </button>
           {task.status === "open" ? (
             <button
               onClick={() => handleComplete(task)}

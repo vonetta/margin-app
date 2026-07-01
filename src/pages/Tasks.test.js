@@ -92,6 +92,101 @@ test("marking a task complete calls the complete endpoint with the right ministr
   );
 });
 
+test("clicking a task opens an edit form pre-filled with its current details", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "t1",
+            title: "Confirm worship setlist",
+            description: "Check with the worship team",
+            status: "open",
+            ministry_id: "ktm-test",
+            assigned_to: "u2",
+            due_date: "2026-07-01T00:00:00Z",
+            recurrence_rule: "FREQ=WEEKLY",
+          },
+        ],
+      });
+    }
+    if (url === "/api/ministry/team") {
+      return Promise.resolve({
+        data: [
+          { _id: "u1", name: "Alex Admin", role: "admin" },
+          { _id: "u2", name: "Tina Team", role: "team" },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<Tasks />);
+  fireEvent.click(await screen.findByText("Confirm worship setlist"));
+
+  expect(await screen.findByDisplayValue("Confirm worship setlist")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("Check with the worship team")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("2026-07-01")).toBeInTheDocument();
+  const assigneeSelect = screen.getAllByRole("combobox").find((el) => el.value === "u2");
+  expect(assigneeSelect).toBeTruthy();
+});
+
+test("saving an edit calls PUT with the updated fields and the right ministry header", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [{ _id: "t1", title: "Old title", status: "open", ministry_id: "ktm-test", assigned_to: "u2" }],
+      });
+    }
+    if (url === "/api/ministry/team") {
+      return Promise.resolve({
+        data: [
+          { _id: "u1", name: "Alex Admin", role: "admin" },
+          { _id: "u2", name: "Tina Team", role: "team" },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<Tasks />);
+  fireEvent.click(await screen.findByText("Old title"));
+
+  const titleInput = await screen.findByDisplayValue("Old title");
+  fireEvent.change(titleInput, { target: { value: "New title" } });
+  fireEvent.click(screen.getByText("Save"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/tasks/t1",
+      expect.objectContaining({ title: "New title", assigned_to: "u2" }),
+      expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
+    ),
+  );
+});
+
+test("cancel discards edits without saving", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [{ _id: "t1", title: "Untouched title", status: "open", ministry_id: "ktm-test", assigned_to: "u2" }],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<Tasks />);
+  fireEvent.click(await screen.findByText("Untouched title"));
+
+  const titleInput = await screen.findByDisplayValue("Untouched title");
+  fireEvent.change(titleInput, { target: { value: "Changed but not saved" } });
+  fireEvent.click(screen.getByText("Cancel"));
+
+  expect(await screen.findByText("Untouched title")).toBeInTheDocument();
+  expect(client.put).not.toHaveBeenCalled();
+});
+
 test("setting a weekly repeat sends the recurrence_rule", async () => {
   client.post.mockResolvedValue({ data: { _id: "t1" } });
   render(<Tasks />);
