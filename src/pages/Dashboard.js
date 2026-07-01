@@ -135,6 +135,11 @@ const Dashboard = () => {
             desc: "Generate event flyers",
             path: "/flyers",
           },
+          {
+            label: "Social Queue",
+            desc: "Approve and schedule posts to Facebook & Instagram",
+            path: "/social-queue",
+          },
           { label: "People", desc: "Directory and groups", path: "/people" },
           {
             label: "Communications",

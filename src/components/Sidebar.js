@@ -10,6 +10,7 @@ const navItems = [
   { label: "Calendar", path: "/calendar", icon: "◈" },
   { label: "Tasks", path: "/tasks", icon: "☑" },
   { label: "Flyers", path: "/flyers", icon: "▣" },
+  { label: "Social Queue", path: "/social-queue", icon: "⌘", adminOnly: true },
   { label: "People", path: "/people", icon: "◎" },
   { label: "Team", path: "/team", icon: "⚑", adminOnly: true },
   { label: "Resources", path: "/resources", icon: "▦", comingSoon: true },

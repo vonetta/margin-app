@@ -79,6 +79,11 @@ const FlyerGenerator = () => {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
+  const [showPostForm, setShowPostForm] = useState(false);
+  const [postCaption, setPostCaption] = useState("");
+  const [creatingPost, setCreatingPost] = useState(false);
+  const [postCreated, setPostCreated] = useState(false);
+
   const fetchPeople = useCallback(async () => {
     setLoadingPeople(true);
     try {
@@ -167,6 +172,9 @@ const FlyerGenerator = () => {
     try {
       const res = await client.post("/api/flyers/generate", buildPayload());
       setFlyer(res.data);
+      setShowPostForm(false);
+      setPostCreated(false);
+      setPostCaption("");
       await fetchHistory();
     } catch (err) {
       setError(err.response?.data?.error || "Flyer generation failed");
@@ -178,6 +186,29 @@ const FlyerGenerator = () => {
   // Regenerating the background re-runs the same generation request — the
   // backend auto-selects a background whenever none is supplied.
   const handleRegenerateBackground = () => handleGenerate();
+
+  const handleCreateSocialPost = async () => {
+    if (!postCaption.trim()) {
+      setError("A caption is required to prepare a social post");
+      return;
+    }
+    setCreatingPost(true);
+    setError("");
+    try {
+      await client.post("/api/social-posts", {
+        flyer_id: flyer._id,
+        caption: postCaption.trim(),
+        graphic_urls: [flyer.social_url],
+        post_type: "image",
+      });
+      setPostCreated(true);
+      setShowPostForm(false);
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to prepare social post");
+    } finally {
+      setCreatingPost(false);
+    }
+  };
 
   const handleDeleteFlyer = async (id) => {
     try {
@@ -626,7 +657,71 @@ const FlyerGenerator = () => {
                 >
                   ↺ Regenerate background
                 </button>
+                {!postCreated && (
+                  <button
+                    onClick={() => setShowPostForm((s) => !s)}
+                    style={{
+                      padding: "8px 16px",
+                      background: "transparent",
+                      color: "var(--navy)",
+                      border: "0.5px solid var(--navy)",
+                      borderRadius: "var(--border-radius)",
+                      fontSize: "12px",
+                    }}
+                  >
+                    {showPostForm ? "Cancel" : "⌘ Post to social"}
+                  </button>
+                )}
               </div>
+
+              {postCreated && (
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#3a7a4a",
+                    background: "#eef7ee",
+                    border: "0.5px solid #b4d8b4",
+                    borderRadius: "var(--border-radius)",
+                    padding: "10px 12px",
+                  }}
+                >
+                  Sent to the social queue for approval — review it on the Social Queue page.
+                </div>
+              )}
+
+              {showPostForm && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <textarea
+                    placeholder="Caption for this post..."
+                    value={postCaption}
+                    onChange={(e) => setPostCaption(e.target.value)}
+                    rows={3}
+                    style={{
+                      padding: "8px 12px",
+                      border: "0.5px solid var(--gray-300)",
+                      borderRadius: "var(--border-radius)",
+                      fontSize: "13px",
+                      resize: "vertical",
+                    }}
+                  />
+                  <button
+                    onClick={handleCreateSocialPost}
+                    disabled={creatingPost}
+                    style={{
+                      padding: "8px 16px",
+                      background: "var(--navy)",
+                      color: "var(--white)",
+                      border: "none",
+                      borderRadius: "var(--border-radius)",
+                      fontSize: "12px",
+                      fontWeight: "500",
+                      alignSelf: "flex-start",
+                    }}
+                  >
+                    {creatingPost ? "Sending..." : "Send for approval"}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
