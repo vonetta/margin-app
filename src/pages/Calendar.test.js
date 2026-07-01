@@ -14,6 +14,17 @@ jest.mock("../context/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+// Calendar.js defaults its displayed month to `new Date()` (today), so any
+// mocked event must fall within the *current* month/year to show up in the
+// grid — a hardcoded date will silently go stale as real time passes.
+// This picks a day-of-month, in the current month, at a fixed UTC hour.
+const dateInCurrentMonth = (day, hour = "18:00:00") => {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  return `${yyyy}-${mm}-${String(day).padStart(2, "0")}T${hour}Z`;
+};
+
 beforeEach(() => {
   client.get.mockReset();
   client.post.mockReset();
@@ -151,12 +162,12 @@ test("aggregates events from every ministry membership, one request per ministry
       const mId = opts?.headers?.["x-ministry-id"];
       if (mId === "ktm-test") {
         return Promise.resolve({
-          data: [{ _id: "e1", title: "KTM Event", occurrence_start: "2026-06-15T18:00:00Z", status: "approved" }],
+          data: [{ _id: "e1", title: "KTM Event", occurrence_start: dateInCurrentMonth(15), status: "approved" }],
         });
       }
       if (mId === "salt-light-test") {
         return Promise.resolve({
-          data: [{ _id: "e2", title: "Salt & Light Event", occurrence_start: "2026-06-16T18:00:00Z", status: "approved" }],
+          data: [{ _id: "e2", title: "Salt & Light Event", occurrence_start: dateInCurrentMonth(16), status: "approved" }],
         });
       }
       return Promise.resolve({ data: [] });
@@ -221,13 +232,13 @@ test("clicking Edit on an event opens the form pre-filled and saves via PUT to t
             title: "Weekly Prayer Call",
             description: "Call in details in the group chat",
             location: "Zoom",
-            start: "2026-06-02T18:00:00Z",
-            end: "2026-06-02T19:00:00Z",
+            start: dateInCurrentMonth(2),
+            end: dateInCurrentMonth(2, "19:00:00"),
             all_day: false,
             visibility: "internal",
             recurrence_rule: "FREQ=WEEKLY",
-            occurrence_start: "2026-06-02T18:00:00Z",
-            occurrence_end: "2026-06-02T19:00:00Z",
+            occurrence_start: dateInCurrentMonth(2),
+            occurrence_end: dateInCurrentMonth(2, "19:00:00"),
             status: "approved",
             ministry_id: "ktm-test",
           },
@@ -271,8 +282,8 @@ test("deleting an event requires a confirm step before the DELETE call fires", a
           {
             _id: "evt1",
             title: "One-off Event",
-            start: "2026-06-02T18:00:00Z",
-            occurrence_start: "2026-06-02T18:00:00Z",
+            start: dateInCurrentMonth(2),
+            occurrence_start: dateInCurrentMonth(2),
             status: "approved",
             ministry_id: "ktm-test",
           },

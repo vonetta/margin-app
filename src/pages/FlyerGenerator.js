@@ -75,6 +75,10 @@ const FlyerGenerator = () => {
   const [flyer, setFlyer] = useState(null);
   const [error, setError] = useState("");
 
+  const [history, setHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
   const fetchPeople = useCallback(async () => {
     setLoadingPeople(true);
     try {
@@ -99,10 +103,23 @@ const FlyerGenerator = () => {
     }
   }, []);
 
+  const fetchHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const res = await client.get("/api/flyers");
+      setHistory(res.data);
+    } catch (err) {
+      console.error("Failed to fetch flyer history");
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchPeople();
     fetchLayouts();
-  }, [fetchPeople, fetchLayouts]);
+    fetchHistory();
+  }, [fetchPeople, fetchLayouts, fetchHistory]);
 
   const host = useMemo(
     () => people.find((p) => p._id === hostId) || null,
@@ -150,6 +167,7 @@ const FlyerGenerator = () => {
     try {
       const res = await client.post("/api/flyers/generate", buildPayload());
       setFlyer(res.data);
+      await fetchHistory();
     } catch (err) {
       setError(err.response?.data?.error || "Flyer generation failed");
     } finally {
@@ -160,6 +178,17 @@ const FlyerGenerator = () => {
   // Regenerating the background re-runs the same generation request — the
   // backend auto-selects a background whenever none is supplied.
   const handleRegenerateBackground = () => handleGenerate();
+
+  const handleDeleteFlyer = async (id) => {
+    try {
+      await client.delete(`/api/flyers/${id}`);
+      setConfirmDeleteId(null);
+      if (flyer?._id === id) setFlyer(null);
+      await fetchHistory();
+    } catch (err) {
+      setError("Failed to delete flyer");
+    }
+  };
 
   const hostCandidates = people.filter((p) => p.role !== "speaker" || p._id === hostId);
   const speakerCandidates = people.filter((p) => p._id !== hostId);
@@ -601,6 +630,98 @@ const FlyerGenerator = () => {
             </>
           )}
         </div>
+      </div>
+
+      <div style={{ marginTop: "24px" }}>
+        <div style={sectionTitleStyle}>Recent flyers</div>
+        {loadingHistory ? (
+          <div style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "10px" }}>Loading...</div>
+        ) : history.length === 0 ? (
+          <div style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "10px" }}>
+            No flyers generated yet.
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+              gap: "12px",
+              marginTop: "12px",
+            }}
+          >
+            {history.map((f) => (
+              <div
+                key={f._id}
+                style={{
+                  ...cardStyle,
+                  padding: "10px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}
+              >
+                <img
+                  src={f.social_url}
+                  alt={f.title}
+                  style={{ width: "100%", borderRadius: "var(--border-radius)", border: "0.5px solid var(--gray-300)" }}
+                />
+                <div style={{ fontSize: "11px", fontWeight: "500", color: "var(--charcoal)" }}>{f.title}</div>
+                <div style={{ fontSize: "10px", color: "var(--gray-500)" }}>
+                  {f.layout}
+                  {f.created_at ? ` · ${new Date(f.created_at).toLocaleDateString()}` : ""}
+                </div>
+                {confirmDeleteId === f._id ? (
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button
+                      onClick={() => handleDeleteFlyer(f._id)}
+                      style={{
+                        flex: 1,
+                        padding: "5px 8px",
+                        background: "#c0504d",
+                        color: "var(--white)",
+                        border: "none",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "10px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      style={{
+                        padding: "5px 8px",
+                        background: "transparent",
+                        color: "var(--gray-600)",
+                        border: "0.5px solid var(--gray-300)",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "10px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteId(f._id)}
+                    style={{
+                      padding: "5px 8px",
+                      background: "transparent",
+                      color: "#c0504d",
+                      border: "0.5px solid #e8b4b4",
+                      borderRadius: "var(--border-radius)",
+                      fontSize: "10px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ✕ Delete
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
