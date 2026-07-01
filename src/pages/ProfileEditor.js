@@ -25,6 +25,7 @@ const ProfileEditor = () => {
   const [newSubName, setNewSubName] = useState("");
   const [newSubTagline, setNewSubTagline] = useState("");
   const [creatingSub, setCreatingSub] = useState(false);
+  const [orgOverview, setOrgOverview] = useState({});
 
   const membership = user?.ministries?.find(
     (m) => m.ministry_id === ministryId,
@@ -35,8 +36,17 @@ const ProfileEditor = () => {
   const fetchSubMinistries = useCallback(async () => {
     setLoadingSubMinistries(true);
     try {
-      const res = await client.get("/api/ministry/sub-ministries");
-      setSubMinistries(res.data);
+      const [subRes, overviewRes] = await Promise.all([
+        client.get("/api/ministry/sub-ministries"),
+        // Read-only rollup — counts only, no individual event/task/member
+        // records — so an admin can see what's happening across their
+        // sub-ministries without needing to be a member of each one.
+        client.get("/api/ministry/org-overview").catch(() => ({ data: [] })),
+      ]);
+      setSubMinistries(subRes.data);
+      setOrgOverview(
+        Object.fromEntries(overviewRes.data.map((o) => [o.ministry_id, o])),
+      );
     } catch (err) {
       console.error("Failed to load sub-ministries");
     } finally {
@@ -557,6 +567,20 @@ const ProfileEditor = () => {
             <label style={labelStyle}>
               Existing sub-ministries ({subMinistries.length})
             </label>
+            {subMinistries.length > 0 && (
+              <p
+                style={{
+                  fontSize: "11px",
+                  color: "var(--gray-500)",
+                  marginBottom: "12px",
+                  lineHeight: 1.6,
+                }}
+              >
+                A quick read on what's happening in each — this is a
+                summary only; you'd still need to be a member of a
+                sub-ministry to see its actual events, tasks, or team.
+              </p>
+            )}
             {loadingSubMinistries ? (
               <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
                 Loading...
@@ -590,6 +614,42 @@ const ProfileEditor = () => {
                     {m.ministry_id}
                     {m.tagline ? ` · ${m.tagline}` : ""}
                   </div>
+                  {orgOverview[m.ministry_id] && (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "14px",
+                        marginTop: "8px",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      {[
+                        { label: "team", value: orgOverview[m.ministry_id].team_count },
+                        {
+                          label: "pending approvals",
+                          value: orgOverview[m.ministry_id].pending_approvals,
+                          warn: orgOverview[m.ministry_id].pending_approvals > 0,
+                        },
+                        { label: "open tasks", value: orgOverview[m.ministry_id].open_tasks },
+                        {
+                          label: "events in 30 days",
+                          value: orgOverview[m.ministry_id].upcoming_events,
+                        },
+                      ].map((stat) => (
+                        <div key={stat.label} style={{ fontSize: "11px" }}>
+                          <span
+                            style={{
+                              fontWeight: "600",
+                              color: stat.warn ? "var(--gold-dark, #b8860b)" : "var(--charcoal)",
+                            }}
+                          >
+                            {stat.value}
+                          </span>{" "}
+                          <span style={{ color: "var(--gray-500)" }}>{stat.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))
             )}
