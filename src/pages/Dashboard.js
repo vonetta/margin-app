@@ -1,10 +1,25 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
+
+const USAGE_LABELS = {
+  team_members: "Team members",
+  sub_ministries: "Sub-ministries",
+  flyers_per_month: "Flyers this month",
+};
 
 const Dashboard = () => {
   const { user, ministryId, ministry } = useAuth();
   const navigate = useNavigate();
+  const [planUsage, setPlanUsage] = useState(null);
+
+  useEffect(() => {
+    client
+      .get("/api/ministry/plan-usage")
+      .then((res) => setPlanUsage(res.data))
+      .catch(() => setPlanUsage(null));
+  }, [ministryId]);
 
   return (
     <div style={{ padding: "32px" }}>
@@ -56,6 +71,49 @@ const Dashboard = () => {
           <div style={{ fontSize: "12px", color: "#b8902e", fontWeight: "500" }}>
             Continue setup →
           </div>
+        </div>
+      )}
+
+      {planUsage && (
+        <div
+          style={{
+            display: "flex",
+            gap: "20px",
+            flexWrap: "wrap",
+            marginBottom: "28px",
+            padding: "14px 18px",
+            background: "var(--white)",
+            border: "0.5px solid var(--gray-300)",
+            borderRadius: "var(--border-radius-lg)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "10px",
+              fontWeight: "600",
+              color: "var(--gray-500)",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              alignSelf: "center",
+            }}
+          >
+            {planUsage.plan} plan
+          </div>
+          {Object.entries(planUsage.usage).map(([key, stat]) => {
+            const unlimited = stat.limit === null;
+            const atCap = !unlimited && stat.used >= stat.limit;
+            return (
+              <div key={key} style={{ fontSize: "12px" }}>
+                <span style={{ fontWeight: "600", color: atCap ? "#c0504d" : "var(--charcoal)" }}>
+                  {stat.used}
+                </span>
+                <span style={{ color: "var(--gray-500)" }}>
+                  {" "}
+                  / {unlimited ? "∞" : stat.limit} {USAGE_LABELS[key]}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 
