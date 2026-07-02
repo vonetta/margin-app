@@ -63,7 +63,7 @@ beforeEach(() => {
   });
 });
 
-test("sends the wizard's chosen layout through to the actual flyer-generation request", async () => {
+test("generates the matching flyer automatically as soon as the caption finalizes", async () => {
   client.post.mockImplementation((url) => {
     if (url === "/api/content/chat") return Promise.resolve(finalizeChatResponse);
     if (url === "/api/flyers/generate")
@@ -81,7 +81,37 @@ test("sends the wizard's chosen layout through to the actual flyer-generation re
 
   await screen.findAllByText("Final caption");
 
-  fireEvent.click(screen.getByText("▣ Generate matching flyer"));
+  // No extra click needed — the flyer generates alongside the caption.
+  await waitFor(() =>
+    expect(client.post).toHaveBeenCalledWith(
+      "/api/flyers/generate",
+      expect.objectContaining({ title: "Worship Intensive" }),
+    ),
+  );
+  await screen.findByAltText("Generated flyer");
+});
+
+test("sends the wizard's chosen layout through to the actual flyer-generation request", async () => {
+  client.post.mockImplementation((url) => {
+    if (url === "/api/content/chat") return Promise.resolve(finalizeChatResponse);
+    if (url === "/api/flyers/generate")
+      return Promise.resolve({ data: { social_url: "https://r2.dev/flyer.png" } });
+    return Promise.resolve({ data: {} });
+  });
+
+  render(<ContentStudio />);
+
+  const textarea = screen.getByPlaceholderText(
+    "Worship Workshop, July 20, 12pm - 6pm, $100, lunch provided...",
+  );
+  fireEvent.change(textarea, { target: { value: "Worship Intensive" } });
+  fireEvent.click(screen.getByText("✦ Start"));
+
+  await screen.findAllByText("Final caption");
+  await screen.findByAltText("Generated flyer");
+
+  // The flyer already auto-generated, so this reopens the wizard to adjust it.
+  fireEvent.click(screen.getByText("↺ Adjust styling"));
 
   // Layout is the wizard's default opening section.
   fireEvent.click(await screen.findByText("Canvas"));
@@ -93,4 +123,33 @@ test("sends the wizard's chosen layout through to the actual flyer-generation re
       expect.objectContaining({ layout: "canvas" }),
     ),
   );
+});
+
+test("does not auto-generate a flyer when the user uploaded one they already made", async () => {
+  client.post.mockImplementation((url) => {
+    if (url === "/api/content/extract-flyer") {
+      return Promise.resolve({ data: { title: "Worship Intensive", date: "August 15" } });
+    }
+    if (url === "/api/content/chat") return Promise.resolve(finalizeChatResponse);
+    if (url === "/api/flyers/generate")
+      return Promise.resolve({ data: { social_url: "https://r2.dev/flyer.png" } });
+    return Promise.resolve({ data: {} });
+  });
+
+  render(<ContentStudio />);
+
+  const file = new File(["fake"], "flyer.png", { type: "image/png" });
+  const fileInput = document.querySelector('input[type="file"]');
+  fireEvent.change(fileInput, { target: { files: [file] } });
+
+  await waitFor(() =>
+    expect(client.post).toHaveBeenCalledWith("/api/content/extract-flyer", expect.anything(), expect.anything()),
+  );
+
+  fireEvent.click(screen.getByText("✦ Start"));
+  await screen.findAllByText("Final caption");
+
+  // Give any (incorrect) auto-generation a chance to fire before asserting it didn't.
+  await new Promise((r) => setTimeout(r, 0));
+  expect(client.post).not.toHaveBeenCalledWith("/api/flyers/generate", expect.anything());
 });

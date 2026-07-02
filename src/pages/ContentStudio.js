@@ -37,6 +37,11 @@ const ContentStudio = () => {
   const [hostId, setHostId] = useState("");
   const [speakerIds, setSpeakerIds] = useState([]);
   const [selectedLayout, setSelectedLayout] = useState("auto");
+  // Set when the user uploads a flyer they already made and explicitly
+  // said not to generate a new one for — auto-generation must respect
+  // that even though the chat still finalizes an `event` object (needed
+  // for caption accuracy) alongside the caption.
+  const [hasExistingFlyer, setHasExistingFlyer] = useState(false);
 
   useEffect(() => {
     client
@@ -108,6 +113,17 @@ const ContentStudio = () => {
       setFinalEvent(res.data.done ? res.data.event || null : null);
       setFinalStyle(res.data.done ? res.data.style || null : null);
       setFlyerUrl(null);
+
+      // Generate the matching flyer immediately alongside the caption
+      // instead of requiring a separate "Generate matching flyer" click
+      // afterward — pass the just-received event/style directly rather
+      // than relying on finalEvent/finalStyle state, which hasn't
+      // re-rendered yet at this point in the same tick. Skipped when the
+      // user uploaded a flyer they already made, since they explicitly
+      // said not to generate a new image.
+      if (res.data.done && res.data.event?.title && !hasExistingFlyer) {
+        handleGenerateFlyer(res.data.style, undefined, res.data.event);
+      }
     } catch (err) {
       setError(err.response?.data?.error || "Something went wrong");
     } finally {
@@ -139,6 +155,7 @@ const ContentStudio = () => {
     setHostId("");
     setSpeakerIds([]);
     setSelectedLayout("auto");
+    setHasExistingFlyer(false);
   };
 
   const describeUploadedFlyer = (details) => {
@@ -173,6 +190,7 @@ const ContentStudio = () => {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setChatInput(describeUploadedFlyer(res.data));
+      setHasExistingFlyer(true);
     } catch (err) {
       setError(err.response?.data?.error || "Failed to read the flyer");
     } finally {
@@ -192,24 +210,29 @@ const ContentStudio = () => {
     }
   };
 
-  const handleGenerateFlyer = async (style, backgroundUrl) => {
-    if (!finalEvent?.title) return;
+  // eventOverride lets the chat-completion handler trigger generation with
+  // the event it just received, without waiting for finalEvent state to
+  // re-render first; every other caller (the manual buttons, the style
+  // wizard) omits it and falls back to the current finalEvent state.
+  const handleGenerateFlyer = async (style, backgroundUrl, eventOverride) => {
+    const event = eventOverride || finalEvent;
+    if (!event?.title) return;
     setShowStyleWizard(false);
     setGeneratingFlyer(true);
     setError("");
     try {
       const res = await client.post("/api/flyers/generate", {
-        title: finalEvent.title,
-        subtitle: finalEvent.subtitle,
-        description: finalEvent.description,
-        theme_tags: finalEvent.theme_tags,
-        highlights: finalEvent.highlights,
-        audience: finalEvent.audience,
-        date: finalEvent.date,
-        location: finalEvent.location,
-        cost: finalEvent.cost,
-        cta: finalEvent.cta,
-        qr_url: finalEvent.registration_url,
+        title: event.title,
+        subtitle: event.subtitle,
+        description: event.description,
+        theme_tags: event.theme_tags,
+        highlights: event.highlights,
+        audience: event.audience,
+        date: event.date,
+        location: event.location,
+        cost: event.cost,
+        cta: event.cta,
+        qr_url: event.registration_url,
         style: style || finalStyle || undefined,
         background_url: backgroundUrl || undefined,
         platform,
