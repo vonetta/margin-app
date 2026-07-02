@@ -84,6 +84,7 @@ const FlyerGenerator = () => {
   const [postCaption, setPostCaption] = useState("");
   const [creatingPost, setCreatingPost] = useState(false);
   const [postCreated, setPostCreated] = useState(false);
+  const [draftingCaption, setDraftingCaption] = useState(false);
 
   const fetchPeople = useCallback(async () => {
     setLoadingPeople(true);
@@ -201,6 +202,22 @@ const FlyerGenerator = () => {
   // Regenerating the background re-runs the same generation request — the
   // backend auto-selects a background whenever none is supplied.
   const handleRegenerateBackground = () => handleGenerate();
+
+  // Writes a caption in the ministry's AI voice from the flyer's own known
+  // details — same engine Content Studio uses — instead of starting from a
+  // blank textarea every time.
+  const handleDraftCaption = async () => {
+    setDraftingCaption(true);
+    setError("");
+    try {
+      const res = await client.post(`/api/flyers/${flyer._id}/generate-caption`, {});
+      setPostCaption(res.data.caption);
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to draft a caption");
+    } finally {
+      setDraftingCaption(false);
+    }
+  };
 
   const handleCreateSocialPost = async () => {
     if (!postCaption.trim()) {
@@ -713,7 +730,11 @@ const FlyerGenerator = () => {
                 </button>
                 {!postCreated && (
                   <button
-                    onClick={() => setShowPostForm((s) => !s)}
+                    onClick={() => {
+                      const opening = !showPostForm;
+                      setShowPostForm((s) => !s);
+                      if (opening && !postCaption) handleDraftCaption();
+                    }}
                     style={{
                       padding: "8px 16px",
                       background: "transparent",
@@ -746,9 +767,10 @@ const FlyerGenerator = () => {
               {showPostForm && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   <textarea
-                    placeholder="Caption for this post..."
+                    placeholder={draftingCaption ? "Drafting a caption..." : "Caption for this post..."}
                     value={postCaption}
                     onChange={(e) => setPostCaption(e.target.value)}
+                    disabled={draftingCaption}
                     rows={3}
                     style={{
                       padding: "8px 12px",
@@ -758,22 +780,41 @@ const FlyerGenerator = () => {
                       resize: "vertical",
                     }}
                   />
-                  <button
-                    onClick={handleCreateSocialPost}
-                    disabled={creatingPost}
-                    style={{
-                      padding: "8px 16px",
-                      background: "var(--navy)",
-                      color: "var(--white)",
-                      border: "none",
-                      borderRadius: "var(--border-radius)",
-                      fontSize: "12px",
-                      fontWeight: "500",
-                      alignSelf: "flex-start",
-                    }}
-                  >
-                    {creatingPost ? "Sending..." : "Send for approval"}
-                  </button>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      onClick={handleCreateSocialPost}
+                      disabled={creatingPost || draftingCaption}
+                      style={{
+                        padding: "8px 16px",
+                        background: "var(--navy)",
+                        color: "var(--white)",
+                        border: "none",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "12px",
+                        fontWeight: "500",
+                      }}
+                    >
+                      {creatingPost ? "Sending..." : "Send for approval"}
+                    </button>
+                    <button
+                      onClick={handleDraftCaption}
+                      disabled={draftingCaption}
+                      style={{
+                        padding: "8px 16px",
+                        background: "transparent",
+                        color: "var(--navy)",
+                        border: "0.5px solid var(--navy)",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "12px",
+                      }}
+                    >
+                      {draftingCaption
+                        ? "Drafting..."
+                        : postCaption
+                          ? "✦ Redraft with AI"
+                          : "✦ Draft with AI"}
+                    </button>
+                  </div>
                 </div>
               )}
             </>

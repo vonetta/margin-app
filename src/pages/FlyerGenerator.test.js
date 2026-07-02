@@ -57,6 +57,9 @@ test("preparing a social post from a generated flyer sends the caption and graph
         data: { _id: "f-new", title: "New Flyer", layout: "monument", social_url: "https://example.com/new.png" },
       });
     }
+    if (url === "/api/flyers/f-new/generate-caption") {
+      return Promise.resolve({ data: { caption: "AI-drafted caption" } });
+    }
     if (url === "/api/social-posts") return Promise.resolve({ data: { _id: "sp1" } });
     return Promise.resolve({ data: {} });
   });
@@ -68,6 +71,14 @@ test("preparing a social post from a generated flyer sends the caption and graph
   fireEvent.click(screen.getByText(/Generate flyer/));
 
   fireEvent.click(await screen.findByText("⌘ Post to social"));
+
+  // Opening the form auto-drafts a caption in the ministry's AI voice
+  // instead of starting from a blank textarea.
+  await waitFor(() =>
+    expect(client.post).toHaveBeenCalledWith("/api/flyers/f-new/generate-caption", {}),
+  );
+  await screen.findByDisplayValue("AI-drafted caption");
+
   fireEvent.change(screen.getByPlaceholderText("Caption for this post..."), {
     target: { value: "Come join us!" },
   });
