@@ -322,4 +322,36 @@ describe("SOPs tab", () => {
       }),
     );
   });
+
+  test("exports an SOP as a PDF via a blob download, in internal or clean mode", async () => {
+    client.get.mockImplementation((url) => {
+      if (url === "/api/profile") return Promise.resolve({ data: { voice_profile: {} } });
+      if (url === "/api/profile/sops/drafts") return Promise.resolve({ data: [pendingDraft] });
+      if (url.startsWith("/api/profile/sops/drafts/sop1/export")) {
+        return Promise.resolve({ data: new Blob(["fake-pdf"]) });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    const createObjectURL = jest.fn().mockReturnValue("blob:fake-url");
+    const revokeObjectURL = jest.fn();
+    window.URL.createObjectURL = createObjectURL;
+    window.URL.revokeObjectURL = revokeObjectURL;
+
+    render(<ProfileEditor />);
+    await screen.findByText("Voice");
+    fireEvent.click(screen.getByText("SOPs"));
+
+    await screen.findByText("Sunday Setup");
+    fireEvent.click(screen.getByText("⬇ Export (clean)"));
+
+    await waitFor(() =>
+      expect(client.get).toHaveBeenCalledWith(
+        "/api/profile/sops/drafts/sop1/export?mode=clean",
+        { responseType: "blob" },
+      ),
+    );
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:fake-url");
+  });
 });

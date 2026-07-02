@@ -47,6 +47,7 @@ const ProfileEditor = () => {
   const [editSopTitle, setEditSopTitle] = useState("");
   const [editSopContent, setEditSopContent] = useState("");
   const [confirmDeleteSopId, setConfirmDeleteSopId] = useState(null);
+  const [exportingSopId, setExportingSopId] = useState(null);
 
   const membership = user?.ministries?.find(
     (m) => m.ministry_id === ministryId,
@@ -217,6 +218,32 @@ const ProfileEditor = () => {
       setConfirmDeleteSopId(null);
     } catch (err) {
       setError("Failed to delete SOP draft");
+    }
+  };
+
+  // The export route requires the Bearer auth header, so a plain
+  // <a href> can't be used the way flyer downloads are (those point at a
+  // public storage URL) — fetch the PDF as a blob and trigger the download
+  // from that instead.
+  const handleExportSop = async (draft, mode) => {
+    setExportingSopId(draft._id);
+    setError("");
+    try {
+      const res = await client.get(`/api/profile/sops/drafts/${draft._id}/export?mode=${mode}`, {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${draft.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError("Failed to export this SOP");
+    } finally {
+      setExportingSopId(null);
     }
   };
 
@@ -1186,6 +1213,34 @@ const ProfileEditor = () => {
                           }}
                         >
                           ✎ Edit
+                        </button>
+                        <button
+                          onClick={() => handleExportSop(draft, "internal")}
+                          disabled={exportingSopId === draft._id}
+                          style={{
+                            padding: "5px 12px",
+                            background: "transparent",
+                            color: "var(--gray-600)",
+                            border: "0.5px solid var(--gray-300)",
+                            borderRadius: "var(--border-radius)",
+                            fontSize: "11px",
+                          }}
+                        >
+                          {exportingSopId === draft._id ? "Exporting..." : "⬇ Export (internal)"}
+                        </button>
+                        <button
+                          onClick={() => handleExportSop(draft, "clean")}
+                          disabled={exportingSopId === draft._id}
+                          style={{
+                            padding: "5px 12px",
+                            background: "transparent",
+                            color: "var(--gray-600)",
+                            border: "0.5px solid var(--gray-300)",
+                            borderRadius: "var(--border-radius)",
+                            fontSize: "11px",
+                          }}
+                        >
+                          {exportingSopId === draft._id ? "Exporting..." : "⬇ Export (clean)"}
                         </button>
                         {draft.status !== "approved" && (
                           <button
