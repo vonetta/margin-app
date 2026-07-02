@@ -85,6 +85,47 @@ test("preparing a social post from a generated flyer sends the caption and graph
   expect(await screen.findByText(/Sent to the social queue/)).toBeInTheDocument();
 });
 
+test("disables the collage layout until a host or speaker photo is selected", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/people") {
+      return Promise.resolve({
+        data: [{ _id: "p1", name: "Jane Host", headshot_url: "https://example.com/jane.jpg" }],
+      });
+    }
+    if (url === "/api/flyers/layouts") {
+      return Promise.resolve({
+        data: [
+          { id: "monument", name: "Monument", description: "Host + speakers" },
+          { id: "collage", name: "Collage", description: "Scattered photo cards" },
+        ],
+      });
+    }
+    if (url === "/api/flyers") return Promise.resolve({ data: [] });
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<FlyerGenerator />);
+
+  const collageOption = await screen.findByText("Collage");
+  expect(
+    screen.getByText("Add a host or speaker photo to unlock this layout"),
+  ).toBeInTheDocument();
+
+  fireEvent.click(collageOption);
+  // Still shows the locked hint — selecting it should have been a no-op.
+  expect(
+    screen.getByText("Add a host or speaker photo to unlock this layout"),
+  ).toBeInTheDocument();
+
+  fireEvent.change(document.querySelector("select"), {
+    target: { value: "p1" },
+  });
+
+  expect(await screen.findByText("Scattered photo cards")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("Collage"));
+  expect(screen.getByText("Scattered photo cards")).toBeInTheDocument();
+});
+
 test("deleting a flyer requires a confirm step before the DELETE call fires", async () => {
   client.delete.mockResolvedValue({ data: { deleted: true } });
 

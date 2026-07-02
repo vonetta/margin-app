@@ -143,6 +143,19 @@ const FlyerGenerator = () => {
   const effectiveLayoutId =
     selectedLayout === "auto" ? suggestedLayoutId : selectedLayout;
 
+  // Collage is built around scattered photo cards — with no host/speaker
+  // photo selected it has nothing to scatter and just falls back to a
+  // plain gradient, so don't let it be picked until there's a photo.
+  const hasAnyPhoto =
+    !!(host && (host.cutout_url || host.headshot_url)) ||
+    speakers.some((s) => s.cutout_url || s.headshot_url);
+
+  useEffect(() => {
+    if (selectedLayout === "collage" && !hasAnyPhoto) {
+      setSelectedLayout("auto");
+    }
+  }, [selectedLayout, hasAnyPhoto]);
+
   const toggleSpeaker = (id) => {
     setSpeakerIds((prev) =>
       prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
@@ -471,47 +484,53 @@ const FlyerGenerator = () => {
                   )}
                 </div>
 
-                {layouts.map((l) => (
-                  <div
-                    key={l.id}
-                    onClick={() => setSelectedLayout(l.id)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      border: `0.5px solid ${selectedLayout === l.id ? "var(--navy)" : "var(--gray-300)"}`,
-                      borderRadius: "var(--border-radius)",
-                      padding: "10px 12px",
-                      cursor: "pointer",
-                      background: selectedLayout === l.id ? "#f4f8fb" : "var(--white)",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: "12px", fontWeight: "500", color: "var(--navy)" }}>
-                        {l.name}
-                        {l.id === suggestedLayoutId && (
-                          <span
-                            style={{
-                              marginLeft: "6px",
-                              fontSize: "9px",
-                              color: "var(--gold-dark)",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.04em",
-                            }}
-                          >
-                            Suggested
-                          </span>
-                        )}
+                {layouts.map((l) => {
+                  const disabled = l.id === "collage" && !hasAnyPhoto;
+                  return (
+                    <div
+                      key={l.id}
+                      onClick={() => !disabled && setSelectedLayout(l.id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        border: `0.5px solid ${selectedLayout === l.id ? "var(--navy)" : "var(--gray-300)"}`,
+                        borderRadius: "var(--border-radius)",
+                        padding: "10px 12px",
+                        cursor: disabled ? "default" : "pointer",
+                        background: selectedLayout === l.id ? "#f4f8fb" : "var(--white)",
+                        opacity: disabled ? 0.5 : 1,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: "12px", fontWeight: "500", color: "var(--navy)" }}>
+                          {l.name}
+                          {l.id === suggestedLayoutId && !disabled && (
+                            <span
+                              style={{
+                                marginLeft: "6px",
+                                fontSize: "9px",
+                                color: "var(--gold-dark)",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.04em",
+                              }}
+                            >
+                              Suggested
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>
+                          {disabled
+                            ? "Add a host or speaker photo to unlock this layout"
+                            : l.description}
+                        </div>
                       </div>
-                      <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>
-                        {l.description}
-                      </div>
+                      {selectedLayout === l.id && (
+                        <span style={{ color: "var(--navy)", fontSize: "12px" }}>✓</span>
+                      )}
                     </div>
-                    {selectedLayout === l.id && (
-                      <span style={{ color: "var(--navy)", fontSize: "12px" }}>✓</span>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
