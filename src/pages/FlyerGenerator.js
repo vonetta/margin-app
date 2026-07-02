@@ -70,6 +70,7 @@ const FlyerGenerator = () => {
   const [layouts, setLayouts] = useState([]);
   const [loadingLayouts, setLoadingLayouts] = useState(false);
   const [selectedLayout, setSelectedLayout] = useState("auto");
+  const [engine, setEngine] = useState("template");
 
   const [generating, setGenerating] = useState(false);
   const [flyer, setFlyer] = useState(null);
@@ -175,7 +176,8 @@ const FlyerGenerator = () => {
     qr_url: form.qr_url || undefined,
     host_id: hostId || undefined,
     speaker_ids: speakerIds,
-    layout: selectedLayout === "auto" ? undefined : selectedLayout,
+    layout: engine === "ai" || selectedLayout === "auto" ? undefined : selectedLayout,
+    engine,
   });
 
   const handleGenerate = async () => {
@@ -447,7 +449,39 @@ const FlyerGenerator = () => {
             )}
           </div>
 
+          {/* Engine */}
+          <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={sectionTitleStyle}>Design engine</div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              {[
+                { id: "template", label: "Template", desc: "Fast, exact brand colors, instant" },
+                { id: "ai", label: "AI Studio", desc: "AI-designed image, a few seconds, varies each time" },
+              ].map((e) => (
+                <div
+                  key={e.id}
+                  onClick={() => setEngine(e.id)}
+                  style={{
+                    flex: 1,
+                    border: `0.5px solid ${engine === e.id ? "var(--navy)" : "var(--gray-300)"}`,
+                    borderRadius: "var(--border-radius)",
+                    padding: "10px 12px",
+                    cursor: "pointer",
+                    background: engine === e.id ? "#f4f8fb" : "var(--white)",
+                  }}
+                >
+                  <div style={{ fontSize: "12px", fontWeight: "500", color: "var(--navy)" }}>
+                    {e.label}
+                  </div>
+                  <div style={{ fontSize: "10px", color: "var(--gray-500)", marginTop: "2px" }}>
+                    {e.desc}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Layout */}
+          {engine === "template" && (
           <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: "12px" }}>
             <div style={sectionTitleStyle}>Layout</div>
             {loadingLayouts ? (
@@ -534,6 +568,7 @@ const FlyerGenerator = () => {
               </div>
             )}
           </div>
+          )}
 
           <button
             onClick={handleGenerate}
