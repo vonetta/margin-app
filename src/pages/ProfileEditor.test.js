@@ -165,3 +165,126 @@ test("still renders the sub-ministry even if the overview fetch fails", async ()
   expect(await screen.findByText("Salt & Light")).toBeInTheDocument();
   await waitFor(() => expect(screen.queryByText("team")).not.toBeInTheDocument());
 });
+
+describe("SOPs tab", () => {
+  const pendingDraft = {
+    _id: "sop1",
+    title: "Sunday Setup",
+    content: "1. Arrange chairs\n2. Test sound",
+    status: "pending_review",
+  };
+
+  test("drafts a new SOP from uploaded images and notes", async () => {
+    client.get.mockImplementation((url) => {
+      if (url === "/api/profile") return Promise.resolve({ data: { voice_profile: {} } });
+      if (url === "/api/profile/sops/drafts") return Promise.resolve({ data: [pendingDraft] });
+      return Promise.resolve({ data: [] });
+    });
+    client.post.mockImplementation((url) => {
+      if (url === "/api/profile/sops/draft") return Promise.resolve({ data: pendingDraft });
+      return Promise.resolve({ data: {} });
+    });
+
+    render(<ProfileEditor />);
+    await screen.findByText("Voice");
+    fireEvent.click(screen.getByText("SOPs"));
+
+    const file = new File(["fake"], "process.png", { type: "image/png" });
+    const fileInput = document.querySelector('input[type="file"]');
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    fireEvent.change(screen.getByPlaceholderText("Notes about this process..."), {
+      target: { value: "These are screenshots of Sunday setup" },
+    });
+    fireEvent.click(screen.getByText("✦ Draft SOP"));
+
+    await waitFor(() =>
+      expect(client.post).toHaveBeenCalledWith(
+        "/api/profile/sops/draft",
+        expect.anything(),
+        expect.objectContaining({ headers: { "Content-Type": "multipart/form-data" } }),
+      ),
+    );
+
+    expect(await screen.findByText("Sunday Setup")).toBeInTheDocument();
+  });
+
+  test("approves a pending SOP draft", async () => {
+    client.get.mockImplementation((url) => {
+      if (url === "/api/profile") return Promise.resolve({ data: { voice_profile: {} } });
+      if (url === "/api/profile/sops/drafts") return Promise.resolve({ data: [pendingDraft] });
+      return Promise.resolve({ data: [] });
+    });
+    client.put.mockImplementation((url) => {
+      if (url === "/api/profile/sops/drafts/sop1/approve") {
+        return Promise.resolve({ data: { ...pendingDraft, status: "approved" } });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    render(<ProfileEditor />);
+    await screen.findByText("Voice");
+    fireEvent.click(screen.getByText("SOPs"));
+
+    await screen.findByText("Sunday Setup");
+    fireEvent.click(screen.getByText("✓ Approve"));
+
+    await waitFor(() =>
+      expect(client.put).toHaveBeenCalledWith("/api/profile/sops/drafts/sop1/approve", {}),
+    );
+
+    // Approved now, so it drops out of the default "Pending" filter view.
+    await waitFor(() => expect(screen.queryByText("Sunday Setup")).not.toBeInTheDocument());
+  });
+
+  test("edits an SOP draft's title and content before saving", async () => {
+    client.get.mockImplementation((url) => {
+      if (url === "/api/profile") return Promise.resolve({ data: { voice_profile: {} } });
+      if (url === "/api/profile/sops/drafts") return Promise.resolve({ data: [pendingDraft] });
+      return Promise.resolve({ data: [] });
+    });
+    client.put.mockResolvedValue({
+      data: { ...pendingDraft, title: "Sunday Morning Setup" },
+    });
+
+    render(<ProfileEditor />);
+    await screen.findByText("Voice");
+    fireEvent.click(screen.getByText("SOPs"));
+
+    await screen.findByText("Sunday Setup");
+    fireEvent.click(screen.getByText("✎ Edit"));
+
+    const titleInput = screen.getByDisplayValue("Sunday Setup");
+    fireEvent.change(titleInput, { target: { value: "Sunday Morning Setup" } });
+    fireEvent.click(screen.getByText("Save"));
+
+    await waitFor(() =>
+      expect(client.put).toHaveBeenCalledWith(
+        "/api/profile/sops/drafts/sop1",
+        expect.objectContaining({ title: "Sunday Morning Setup" }),
+      ),
+    );
+  });
+
+  test("deleting an SOP draft requires a confirm step", async () => {
+    client.get.mockImplementation((url) => {
+      if (url === "/api/profile") return Promise.resolve({ data: { voice_profile: {} } });
+      if (url === "/api/profile/sops/drafts") return Promise.resolve({ data: [pendingDraft] });
+      return Promise.resolve({ data: [] });
+    });
+    client.delete.mockResolvedValue({ data: { deleted: true } });
+
+    render(<ProfileEditor />);
+    await screen.findByText("Voice");
+    fireEvent.click(screen.getByText("SOPs"));
+
+    await screen.findByText("Sunday Setup");
+    fireEvent.click(screen.getByText("Delete"));
+    expect(client.delete).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("Confirm delete"));
+    await waitFor(() =>
+      expect(client.delete).toHaveBeenCalledWith("/api/profile/sops/drafts/sop1"),
+    );
+  });
+});
