@@ -15,6 +15,7 @@ const ContentStudio = () => {
   const { switchMinistry, ministry } = useAuth();
   const [tab, setTab] = useState("generate");
   const [platform, setPlatform] = useState("Instagram");
+  const [engine, setEngine] = useState("template");
   const [chatInput, setChatInput] = useState("");
   const [switchNotice, setSwitchNotice] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -238,7 +239,8 @@ const ContentStudio = () => {
         platform,
         host_id: hostId || undefined,
         speaker_ids: speakerIds,
-        layout: selectedLayout === "auto" ? undefined : selectedLayout,
+        layout: engine === "ai" || selectedLayout === "auto" ? undefined : selectedLayout,
+        engine,
       });
       setFlyerUrl(res.data.social_url);
       if (style) setFinalStyle(style);
@@ -456,6 +458,39 @@ const ContentStudio = () => {
                     {p}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "10px",
+                  color: "var(--gray-600)",
+                  marginBottom: "6px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                Flyer engine
+              </label>
+              <select
+                value={engine}
+                onChange={(e) => setEngine(e.target.value)}
+                disabled={messages.length > 0}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "0.5px solid var(--gray-300)",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "13px",
+                  color: "var(--charcoal)",
+                  background: messages.length > 0 ? "var(--gray-100)" : "var(--white)",
+                  outline: "none",
+                }}
+              >
+                <option value="template">Template — fast, exact brand colors</option>
+                <option value="ai">AI Studio — AI-designed image, varies each time</option>
               </select>
             </div>
 

@@ -153,3 +153,33 @@ test("does not auto-generate a flyer when the user uploaded one they already mad
   await new Promise((r) => setTimeout(r, 0));
   expect(client.post).not.toHaveBeenCalledWith("/api/flyers/generate", expect.anything());
 });
+
+test("picking AI Studio sends engine: ai and skips the layout field", async () => {
+  client.post.mockImplementation((url) => {
+    if (url === "/api/content/chat") return Promise.resolve(finalizeChatResponse);
+    if (url === "/api/flyers/generate")
+      return Promise.resolve({ data: { social_url: "https://r2.dev/flyer.png" } });
+    return Promise.resolve({ data: {} });
+  });
+
+  render(<ContentStudio />);
+
+  fireEvent.change(screen.getByText("Flyer engine").parentElement.querySelector("select"), {
+    target: { value: "ai" },
+  });
+
+  const textarea = screen.getByPlaceholderText(
+    "Worship Workshop, July 20, 12pm - 6pm, $100, lunch provided...",
+  );
+  fireEvent.change(textarea, { target: { value: "Worship Intensive" } });
+  fireEvent.click(screen.getByText("✦ Start"));
+
+  await screen.findAllByText("Final caption");
+
+  await waitFor(() =>
+    expect(client.post).toHaveBeenCalledWith(
+      "/api/flyers/generate",
+      expect.objectContaining({ engine: "ai", layout: undefined }),
+    ),
+  );
+});
