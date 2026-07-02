@@ -36,9 +36,13 @@ const ProfileEditor = () => {
   const [sopDrafts, setSopDrafts] = useState([]);
   const [loadingSops, setLoadingSops] = useState(false);
   const [sopStatusFilter, setSopStatusFilter] = useState("pending_review");
+  const [sopInputMode, setSopInputMode] = useState("images");
   const [sopImages, setSopImages] = useState([]);
   const [sopNotes, setSopNotes] = useState("");
   const [generatingSop, setGeneratingSop] = useState(false);
+  const [manualSopTitle, setManualSopTitle] = useState("");
+  const [manualSopContent, setManualSopContent] = useState("");
+  const [addingManualSop, setAddingManualSop] = useState(false);
   const [editingSopId, setEditingSopId] = useState(null);
   const [editSopTitle, setEditSopTitle] = useState("");
   const [editSopContent, setEditSopContent] = useState("");
@@ -143,6 +147,29 @@ const ProfileEditor = () => {
       setError(err.response?.data?.error || "Failed to draft an SOP from these images");
     } finally {
       setGeneratingSop(false);
+    }
+  };
+
+  const handleAddManualSop = async () => {
+    if (!manualSopTitle.trim() || !manualSopContent.trim()) {
+      setError("Title and content are both required");
+      return;
+    }
+    setAddingManualSop(true);
+    setError("");
+    try {
+      await client.post("/api/profile/sops", {
+        title: manualSopTitle.trim(),
+        content: manualSopContent.trim(),
+      });
+      setManualSopTitle("");
+      setManualSopContent("");
+      setSopStatusFilter("pending_review");
+      await fetchSopDrafts();
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to add this SOP");
+    } finally {
+      setAddingManualSop(false);
     }
   };
 
@@ -959,49 +986,111 @@ const ProfileEditor = () => {
 
       {tab === "sops" && canEdit && (
         <div style={{ maxWidth: "700px" }}>
-          <div style={cardStyle}>
-            <label style={labelStyle}>Draft a new SOP from images</label>
-            <p style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "14px", lineHeight: 1.6 }}>
-              Upload a few images of the process (screenshots, photos of a
-              whiteboard, a checklist, etc.) and add any notes for context.
-              AI drafts a step-by-step SOP, which sits here for review before
-              it can be approved and start shaping how the AI writes content.
-            </p>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              onChange={(e) => setSopImages(Array.from(e.target.files || []))}
-              style={{ marginBottom: "10px", fontSize: "12px" }}
-            />
-            {sopImages.length > 0 && (
-              <div style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "10px" }}>
-                {sopImages.length} image{sopImages.length > 1 ? "s" : ""} selected
-              </div>
-            )}
-            <textarea
-              placeholder="Notes about this process..."
-              value={sopNotes}
-              onChange={(e) => setSopNotes(e.target.value)}
-              rows={3}
-              style={{ ...inputStyle, resize: "vertical", marginBottom: "10px" }}
-            />
-            <button
-              onClick={handleGenerateSop}
-              disabled={generatingSop}
-              style={{
-                padding: "8px 16px",
-                background: generatingSop ? "var(--gray-400)" : "var(--primary)",
-                color: "var(--white)",
-                border: "none",
-                borderRadius: "var(--border-radius)",
-                fontSize: "12px",
-                fontWeight: "500",
-              }}
-            >
-              {generatingSop ? "Drafting..." : "✦ Draft SOP"}
-            </button>
+          <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+            {[
+              { key: "images", label: "Draft from images" },
+              { key: "manual", label: "I already have an SOP" },
+            ].map((m) => (
+              <button
+                key={m.key}
+                onClick={() => setSopInputMode(m.key)}
+                style={{
+                  padding: "5px 12px",
+                  borderRadius: "16px",
+                  border: "0.5px solid",
+                  borderColor: sopInputMode === m.key ? "var(--primary)" : "var(--gray-300)",
+                  background: sopInputMode === m.key ? "var(--primary)" : "transparent",
+                  color: sopInputMode === m.key ? "var(--white)" : "var(--gray-600)",
+                  fontSize: "11px",
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
           </div>
+
+          {sopInputMode === "images" ? (
+            <div key="images-form" style={cardStyle}>
+              <label style={labelStyle}>Draft a new SOP from images</label>
+              <p style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "14px", lineHeight: 1.6 }}>
+                Upload a few images of the process (screenshots, photos of a
+                whiteboard, a checklist, etc.) and add any notes for context.
+                AI drafts a step-by-step SOP, which sits here for review before
+                it can be approved and start shaping how the AI writes content.
+              </p>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                onChange={(e) => setSopImages(Array.from(e.target.files || []))}
+                style={{ marginBottom: "10px", fontSize: "12px" }}
+              />
+              {sopImages.length > 0 && (
+                <div style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "10px" }}>
+                  {sopImages.length} image{sopImages.length > 1 ? "s" : ""} selected
+                </div>
+              )}
+              <textarea
+                placeholder="Notes about this process..."
+                value={sopNotes}
+                onChange={(e) => setSopNotes(e.target.value)}
+                rows={3}
+                style={{ ...inputStyle, resize: "vertical", marginBottom: "10px" }}
+              />
+              <button
+                onClick={handleGenerateSop}
+                disabled={generatingSop}
+                style={{
+                  padding: "8px 16px",
+                  background: generatingSop ? "var(--gray-400)" : "var(--primary)",
+                  color: "var(--white)",
+                  border: "none",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "12px",
+                  fontWeight: "500",
+                }}
+              >
+                {generatingSop ? "Drafting..." : "✦ Draft SOP"}
+              </button>
+            </div>
+          ) : (
+            <div key="manual-form" style={cardStyle}>
+              <label style={labelStyle}>Add an SOP you already wrote</label>
+              <p style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "14px", lineHeight: 1.6 }}>
+                Paste it in directly — no AI drafting involved. It still lands
+                in Pending below for a one-click approve, same as an
+                AI-drafted one, before it can shape how the AI writes content.
+              </p>
+              <input
+                placeholder="Title"
+                value={manualSopTitle}
+                onChange={(e) => setManualSopTitle(e.target.value)}
+                style={{ ...inputStyle, marginBottom: "10px" }}
+              />
+              <textarea
+                placeholder="Paste the SOP content here..."
+                value={manualSopContent}
+                onChange={(e) => setManualSopContent(e.target.value)}
+                rows={8}
+                style={{ ...inputStyle, resize: "vertical", marginBottom: "10px" }}
+              />
+              <button
+                onClick={handleAddManualSop}
+                disabled={addingManualSop}
+                style={{
+                  padding: "8px 16px",
+                  background: addingManualSop ? "var(--gray-400)" : "var(--primary)",
+                  color: "var(--white)",
+                  border: "none",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "12px",
+                  fontWeight: "500",
+                }}
+              >
+                {addingManualSop ? "Adding..." : "Add SOP"}
+              </button>
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
             {[

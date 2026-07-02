@@ -287,4 +287,39 @@ describe("SOPs tab", () => {
       expect(client.delete).toHaveBeenCalledWith("/api/profile/sops/drafts/sop1"),
     );
   });
+
+  test("adding an SOP you already wrote skips AI drafting but still lands in Pending", async () => {
+    client.get.mockImplementation((url) => {
+      if (url === "/api/profile") return Promise.resolve({ data: { voice_profile: {} } });
+      if (url === "/api/profile/sops/drafts") return Promise.resolve({ data: [pendingDraft] });
+      return Promise.resolve({ data: [] });
+    });
+    client.post.mockImplementation((url) => {
+      if (url === "/api/profile/sops") {
+        return Promise.resolve({ data: { ...pendingDraft, _id: "sop2", title: "Existing SOP" } });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    render(<ProfileEditor />);
+    await screen.findByText("Voice");
+    fireEvent.click(screen.getByText("SOPs"));
+
+    fireEvent.click(screen.getByText("I already have an SOP"));
+
+    fireEvent.change(screen.getByPlaceholderText("Title"), {
+      target: { value: "Existing SOP" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Paste the SOP content here..."), {
+      target: { value: "1. Do the thing." },
+    });
+    fireEvent.click(screen.getByText("Add SOP"));
+
+    await waitFor(() =>
+      expect(client.post).toHaveBeenCalledWith("/api/profile/sops", {
+        title: "Existing SOP",
+        content: "1. Do the thing.",
+      }),
+    );
+  });
 });
