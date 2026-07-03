@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
+import PageHeader from "../components/PageHeader";
 
 const ROLES = ["host", "speaker", "leader", "member", "staff"];
 
@@ -28,6 +29,7 @@ const cardStyle = {
   border: "0.5px solid var(--gray-300)",
   borderRadius: "var(--border-radius-lg)",
   padding: "20px",
+  boxShadow: "var(--shadow)",
 };
 
 const sectionTitleStyle = {
@@ -145,46 +147,28 @@ const People = () => {
 
   return (
     <div style={{ padding: "32px", flex: 1, overflow: "auto" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "24px",
-        }}
-      >
-        <div>
-          <h2
+      <PageHeader
+        icon="◎"
+        color="var(--gold)"
+        title="People"
+        subtitle="Hosts, speakers, and leaders for your flyers and content"
+        action={
+          <button
+            onClick={startNew}
             style={{
-              fontFamily: "Cinzel, serif",
-              fontSize: "20px",
+              padding: "8px 16px",
+              background: "var(--navy)",
+              color: "var(--white)",
+              border: "none",
+              borderRadius: "var(--border-radius)",
+              fontSize: "12px",
               fontWeight: "500",
-              color: "var(--navy)",
-              letterSpacing: "0.04em",
-              marginBottom: "4px",
             }}
           >
-            People
-          </h2>
-          <p style={{ fontSize: "12px", color: "var(--gray-600)" }}>
-            Hosts, speakers, and leaders for your flyers and content
-          </p>
-        </div>
-        <button
-          onClick={startNew}
-          style={{
-            padding: "8px 16px",
-            background: "var(--navy)",
-            color: "var(--white)",
-            border: "none",
-            borderRadius: "var(--border-radius)",
-            fontSize: "12px",
-            fontWeight: "500",
-          }}
-        >
-          + Add person
-        </button>
-      </div>
+            + Add person
+          </button>
+        }
+      />
 
       <div
         style={{

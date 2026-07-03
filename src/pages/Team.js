@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
+import PageHeader from "../components/PageHeader";
 
 const ROLES = [
   { value: "admin", label: "Admin", desc: "Full access — manages the ministry, team roles, and approvals" },
@@ -115,40 +116,29 @@ const Team = () => {
 
   return (
     <div style={{ padding: "32px", flex: 1, overflow: "auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
-        <div>
-          <h2
+      <PageHeader
+        icon="⚑"
+        color="var(--gold)"
+        title="Team"
+        subtitle="Add members and set who's a leader or admin — leaders and admins get notified when something needs approval"
+        action={
+          <button
+            onClick={() => setShowInviteForm((s) => !s)}
             style={{
-              fontFamily: "Cinzel, serif",
-              fontSize: "20px",
+              padding: "8px 16px",
+              background: "var(--navy)",
+              color: "var(--white)",
+              border: "none",
+              borderRadius: "var(--border-radius)",
+              fontSize: "12px",
               fontWeight: "500",
-              letterSpacing: "0.04em",
-              color: "var(--navy)",
-              marginBottom: "4px",
+              cursor: "pointer",
             }}
           >
-            Team
-          </h2>
-          <p style={{ fontSize: "12px", color: "var(--gray-600)" }}>
-            Add members and set who's a leader or admin — leaders and admins get notified when something needs approval
-          </p>
-        </div>
-        <button
-          onClick={() => setShowInviteForm((s) => !s)}
-          style={{
-            padding: "8px 16px",
-            background: "var(--navy)",
-            color: "var(--white)",
-            border: "none",
-            borderRadius: "var(--border-radius)",
-            fontSize: "12px",
-            fontWeight: "500",
-            cursor: "pointer",
-          }}
-        >
-          {showInviteForm ? "Cancel" : "+ Add member"}
-        </button>
-      </div>
+            {showInviteForm ? "Cancel" : "+ Add member"}
+          </button>
+        }
+      />
 
       {error && (
         <div

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
+import PageHeader from "../components/PageHeader";
 
 const TABS = [
   { key: "pending_approval", label: "Pending approval" },
@@ -117,23 +118,12 @@ const SocialQueue = () => {
 
   return (
     <div style={{ padding: "32px", flex: 1, overflow: "auto" }}>
-      <div style={{ marginBottom: "24px" }}>
-        <h2
-          style={{
-            fontFamily: "Cinzel, serif",
-            fontSize: "20px",
-            fontWeight: "500",
-            letterSpacing: "0.04em",
-            color: "var(--navy)",
-            marginBottom: "4px",
-          }}
-        >
-          Social Queue
-        </h2>
-        <p style={{ fontSize: "12px", color: "var(--gray-600)" }}>
-          Review generated posts, pick where and when they go out, and Margin posts them itself
-        </p>
-      </div>
+      <PageHeader
+        icon="⌘"
+        color="var(--navy)"
+        title="Social Queue"
+        subtitle="Review generated posts, pick where and when they go out, and Margin posts them itself"
+      />
 
       <div style={{ display: "flex", gap: "4px", marginBottom: "20px" }}>
         {TABS.map((t) => (

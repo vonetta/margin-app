@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import FlyerStyleWizard from "../components/FlyerStyleWizard";
+import PageHeader from "../components/PageHeader";
 
 const PLATFORMS = ["Instagram", "Facebook", "Email", "Quote card"];
 
@@ -300,23 +301,12 @@ const ContentStudio = () => {
 
   return (
     <div style={{ padding: "32px", flex: 1, overflow: "auto" }}>
-      <div style={{ marginBottom: "24px" }}>
-        <h2
-          style={{
-            fontFamily: "Cinzel, serif",
-            fontSize: "20px",
-            fontWeight: "500",
-            color: "var(--navy)",
-            letterSpacing: "0.04em",
-            marginBottom: "4px",
-          }}
-        >
-          Content Studio
-        </h2>
-        <p style={{ fontSize: "12px", color: "var(--gray-600)" }}>
-          Generate, review, and publish ministry content
-        </p>
-      </div>
+      <PageHeader
+        icon="✦"
+        color="var(--accent)"
+        title="Content Studio"
+        subtitle="Generate, review, and publish ministry content"
+      />
 
       <div style={{ display: "flex", gap: "4px", marginBottom: "24px" }}>
         {[

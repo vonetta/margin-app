@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
+import PageHeader from "../components/PageHeader";
 
 const EMAIL_TYPES = [
   { value: "invitation", label: "Invitation", desc: "Invite a prospective speaker/contributor" },
@@ -181,23 +182,12 @@ const Communications = () => {
 
   return (
     <div style={{ padding: "32px", flex: 1, overflow: "auto" }}>
-      <div style={{ marginBottom: "24px" }}>
-        <h2
-          style={{
-            fontFamily: "Cinzel, serif",
-            fontSize: "20px",
-            fontWeight: "500",
-            letterSpacing: "0.04em",
-            color: "var(--navy)",
-            marginBottom: "4px",
-          }}
-        >
-          Communications
-        </h2>
-        <p style={{ fontSize: "12px", color: "var(--gray-600)" }}>
-          Draft emails to guest speakers and partner ministries
-        </p>
-      </div>
+      <PageHeader
+        icon="✉"
+        color="var(--gold)"
+        title="Communications"
+        subtitle="Draft emails to guest speakers and partner ministries"
+      />
 
       <div style={{ display: "flex", gap: "4px", marginBottom: "24px" }}>
         {["generate", "queue"].map((t) => (

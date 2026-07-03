@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import PageHeader from "../components/PageHeader";
 
 const ProfileEditor = () => {
   const navigate = useNavigate();
@@ -241,6 +242,7 @@ const ProfileEditor = () => {
     borderRadius: "var(--border-radius-lg)",
     padding: "20px",
     marginBottom: "16px",
+    boxShadow: "var(--shadow)",
   };
 
   if (loading) {
@@ -270,23 +272,12 @@ const ProfileEditor = () => {
 
   return (
     <div style={{ padding: "32px", flex: 1, overflow: "auto" }}>
-      <div style={{ marginBottom: "24px" }}>
-        <h2
-          style={{
-            fontFamily: "Cinzel, serif",
-            fontSize: "20px",
-            fontWeight: "500",
-            color: "var(--primary)",
-            letterSpacing: "0.04em",
-            marginBottom: "4px",
-          }}
-        >
-          AI Profile
-        </h2>
-        <p style={{ fontSize: "12px", color: "var(--gray-600)" }}>
-          The voice and rules that shape generated content
-        </p>
-      </div>
+      <PageHeader
+        icon="◐"
+        color="var(--gold)"
+        title="AI Profile"
+        subtitle="The voice and rules that shape generated content"
+      />
 
       {!canEdit && (
         <div

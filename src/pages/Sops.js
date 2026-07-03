@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import PageHeader from "../components/PageHeader";
 
 const labelStyle = {
   display: "block",
@@ -27,6 +28,7 @@ const cardStyle = {
   borderRadius: "var(--border-radius-lg)",
   padding: "20px",
   marginBottom: "16px",
+  boxShadow: "var(--shadow)",
 };
 
 const Sops = () => {
@@ -200,23 +202,12 @@ const Sops = () => {
 
   return (
     <div style={{ padding: "32px", flex: 1, overflow: "auto" }}>
-      <div style={{ marginBottom: "24px" }}>
-        <h2
-          style={{
-            fontFamily: "Cinzel, serif",
-            fontSize: "20px",
-            fontWeight: "500",
-            color: "var(--navy)",
-            letterSpacing: "0.04em",
-            marginBottom: "4px",
-          }}
-        >
-          SOPs
-        </h2>
-        <p style={{ fontSize: "12px", color: "var(--gray-600)" }}>
-          Draft, review, and approve Standard Operating Procedures
-        </p>
-      </div>
+      <PageHeader
+        icon="▤"
+        color="var(--accent)"
+        title="SOPs"
+        subtitle="Draft, review, and approve Standard Operating Procedures"
+      />
 
       {error && (
         <div

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import PageHeader from "../components/PageHeader";
 
 const WEEKDAYS = [
   { value: "SU", label: "Su" },
@@ -424,47 +425,29 @@ const Calendar = () => {
 
   return (
     <div style={{ padding: "32px", flex: 1, overflow: "auto" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "24px",
-        }}
-      >
-        <div>
-          <h2
+      <PageHeader
+        icon="◈"
+        color="var(--navy)"
+        title="Calendar"
+        subtitle="Prayer calls, meetings, and events across every ministry you're part of"
+        action={
+          <button
+            onClick={() => (showForm ? resetForm() : setShowForm(true))}
             style={{
-              fontFamily: "Cinzel, serif",
-              fontSize: "20px",
+              padding: "8px 16px",
+              background: "var(--navy)",
+              color: "var(--white)",
+              border: "none",
+              borderRadius: "var(--border-radius)",
+              fontSize: "12px",
               fontWeight: "500",
-              letterSpacing: "0.04em",
-              color: "var(--navy)",
-              marginBottom: "4px",
+              cursor: "pointer",
             }}
           >
-            Calendar
-          </h2>
-          <p style={{ fontSize: "12px", color: "var(--gray-600)" }}>
-            Prayer calls, meetings, and events across every ministry you're part of
-          </p>
-        </div>
-        <button
-          onClick={() => (showForm ? resetForm() : setShowForm(true))}
-          style={{
-            padding: "8px 16px",
-            background: "var(--navy)",
-            color: "var(--white)",
-            border: "none",
-            borderRadius: "var(--border-radius)",
-            fontSize: "12px",
-            fontWeight: "500",
-            cursor: "pointer",
-          }}
-        >
-          {showForm ? "Cancel" : "+ New event"}
-        </button>
-      </div>
+            {showForm ? "Cancel" : "+ New event"}
+          </button>
+        }
+      />
 
       <div style={{ display: "flex", gap: "4px", marginBottom: "20px" }}>
         {[
