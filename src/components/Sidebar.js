@@ -13,6 +13,7 @@ const navItems = [
   { label: "Social Queue", path: "/social-queue", icon: "⌘", adminOnly: true },
   { label: "People", path: "/people", icon: "◎" },
   { label: "Team", path: "/team", icon: "⚑", adminOnly: true },
+  { label: "SOPs", path: "/sops", icon: "▤", roles: ["admin", "leader"] },
   { label: "Resources", path: "/resources", icon: "▦", comingSoon: true },
   { label: "AI Profile", path: "/profile", icon: "◐" },
 ];
@@ -24,7 +25,10 @@ const Sidebar = () => {
 
   const memberships = user?.ministries || [];
   const currentRole = memberships.find((m) => m.ministry_id === ministryId)?.role;
-  const visibleNavItems = navItems.filter((item) => !item.adminOnly || currentRole === "admin");
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.roles) return item.roles.includes(currentRole);
+    return !item.adminOnly || currentRole === "admin";
+  });
 
   const handleSwitch = async (e) => {
     const newId = e.target.value;

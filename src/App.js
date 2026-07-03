@@ -16,6 +16,7 @@ import People from "./pages/People";
 import Onboarding from "./pages/Onboarding";
 import JoinInvite from "./pages/JoinInvite";
 import SocialQueue from "./pages/SocialQueue";
+import Sops from "./pages/Sops";
 
 const AppShell = ({ children }) => (
   <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -137,6 +138,16 @@ const App = () => {
               <ProtectedRoute>
                 <AppShell>
                   <ProfileEditor />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/sops"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <Sops />
                 </AppShell>
               </ProtectedRoute>
             }
