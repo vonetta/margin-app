@@ -9,6 +9,7 @@ const navItems = [
   { label: "Communications", path: "/communications", icon: "✉" },
   { label: "Calendar", path: "/calendar", icon: "◈" },
   { label: "Tasks", path: "/tasks", icon: "☑" },
+  { label: "Meeting Recap", path: "/meeting-recap", icon: "▧", roles: ["admin", "leader"] },
   { label: "Flyers", path: "/flyers", icon: "▣" },
   { label: "Social Queue", path: "/social-queue", icon: "⌘", adminOnly: true },
   { label: "People", path: "/people", icon: "◎" },

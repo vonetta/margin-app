@@ -119,3 +119,40 @@ test("shows an error if the role change is rejected (e.g. last admin)", async ()
 
   expect(await screen.findByText(/last admin/)).toBeInTheDocument();
 });
+
+test("shows the team overview grouped by assignee", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/ministry/team") {
+      return Promise.resolve({
+        data: [{ _id: "u1", name: "Alex Admin", email: "alex@ktm.com", role: "admin" }],
+      });
+    }
+    if (url === "/api/invites") return Promise.resolve({ data: [] });
+    if (url === "/api/tasks/team-overview") {
+      return Promise.resolve({
+        data: {
+          "Prophetess Mesha": [{ _id: "t1", title: "Design the flyer", due_date: "2099-01-01T00:00:00Z" }],
+        },
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<Team />);
+
+  expect(await screen.findByText("Prophetess Mesha")).toBeInTheDocument();
+  expect(await screen.findByText("Design the flyer")).toBeInTheDocument();
+});
+
+test("shows an empty state when no one has open tasks", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/ministry/team") return Promise.resolve({ data: [] });
+    if (url === "/api/invites") return Promise.resolve({ data: [] });
+    if (url === "/api/tasks/team-overview") return Promise.resolve({ data: {} });
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<Team />);
+
+  expect(await screen.findByText("No open tasks assigned to anyone right now.")).toBeInTheDocument();
+});

@@ -25,6 +25,8 @@ const Team = () => {
   const [inviteForm, setInviteForm] = useState(emptyInviteForm);
   const [invitingSaving, setInvitingSaving] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [overview, setOverview] = useState({});
+  const [loadingOverview, setLoadingOverview] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -42,9 +44,22 @@ const Team = () => {
     }
   }, []);
 
+  const fetchOverview = useCallback(async () => {
+    setLoadingOverview(true);
+    try {
+      const res = await client.get("/api/tasks/team-overview");
+      setOverview(res.data);
+    } catch (err) {
+      setOverview({});
+    } finally {
+      setLoadingOverview(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchAll();
-  }, [fetchAll]);
+    fetchOverview();
+  }, [fetchAll, fetchOverview]);
 
   const handleRoleChange = async (member, newRole) => {
     if (newRole === member.role) return;
@@ -150,6 +165,66 @@ const Team = () => {
           {error}
         </div>
       )}
+
+      <div
+        style={{
+          background: "var(--white)",
+          border: "0.5px solid var(--gray-300)",
+          borderRadius: "var(--border-radius-lg)",
+          padding: "20px",
+          marginBottom: "20px",
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "Cinzel, serif",
+            fontSize: "12px",
+            fontWeight: "500",
+            color: "var(--navy)",
+            letterSpacing: "0.06em",
+            marginBottom: "12px",
+          }}
+        >
+          TEAM OVERVIEW
+        </div>
+        {loadingOverview ? (
+          <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>Loading...</div>
+        ) : Object.keys(overview).length === 0 ? (
+          <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
+            No open tasks assigned to anyone right now.
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gap: "16px",
+            }}
+          >
+            {Object.entries(overview).map(([name, tasks]) => (
+              <div key={name}>
+                <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--charcoal)", marginBottom: "6px" }}>
+                  {name}
+                  <span style={{ color: "var(--gray-500)", fontWeight: "400" }}> ({tasks.length})</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {tasks.map((t) => (
+                    <div key={t._id} style={{ fontSize: "12px", color: "var(--gray-600)" }}>
+                      {t.title}
+                      {t.due_date && (
+                        <span style={{ color: "var(--gray-500)" }}>
+                          {" "}
+                          · {new Date(t.due_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {showInviteForm && (
         <div
