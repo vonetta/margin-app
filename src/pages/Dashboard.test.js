@@ -38,7 +38,8 @@ test("shows plan usage with limits for a capped plan", async () => {
 
   expect(await screen.findByText("small plan")).toBeInTheDocument();
   expect(screen.getByText("3")).toBeInTheDocument();
-  expect(screen.getByText(/5 Team members/)).toBeInTheDocument();
+  expect(screen.getByText(/\/ 5/)).toBeInTheDocument();
+  expect(screen.getByText("Team members")).toBeInTheDocument();
 });
 
 test("shows an infinity symbol for unlimited (null) limits", async () => {

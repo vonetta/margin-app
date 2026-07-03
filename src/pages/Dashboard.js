@@ -122,27 +122,48 @@ const Dashboard = () => {
 
   return (
     <div style={{ padding: "32px" }}>
-      <h2
+      <div
         style={{
-          fontFamily: "Cinzel, serif",
-          fontSize: "20px",
-          fontWeight: "500",
-          color: "var(--navy)",
-          letterSpacing: "0.04em",
-          marginBottom: "8px",
+          position: "relative",
+          overflow: "hidden",
+          borderRadius: "var(--border-radius-lg)",
+          padding: "28px 32px",
+          marginBottom: "28px",
+          background:
+            "radial-gradient(circle at 15% 20%, rgba(233,69,96,0.16), transparent 55%), radial-gradient(circle at 85% 100%, rgba(245,166,35,0.16), transparent 55%), var(--navy)",
         }}
       >
-        Welcome back, {user?.name?.split(" ")[0]}
-      </h2>
-      <p
-        style={{
-          fontSize: "13px",
-          color: "var(--gray-600)",
-          marginBottom: "32px",
-        }}
-      >
-        {ministryId?.toUpperCase()} workspace
-      </p>
+        <h2
+          style={{
+            fontFamily: "Cinzel, serif",
+            fontSize: "28px",
+            fontWeight: "500",
+            color: "var(--white)",
+            letterSpacing: "0.02em",
+            marginBottom: "6px",
+          }}
+        >
+          Welcome back, {user?.name?.split(" ")[0]}
+        </h2>
+        <p
+          style={{
+            fontSize: "13px",
+            color: "rgba(255,255,255,0.65)",
+            letterSpacing: "0.04em",
+          }}
+        >
+          {ministryId?.toUpperCase()} workspace
+        </p>
+        <div
+          style={{
+            width: "48px",
+            height: "3px",
+            background: "var(--gold)",
+            borderRadius: "2px",
+            marginTop: "16px",
+          }}
+        />
+      </div>
 
       {ministry && !ministry.onboarding_complete && (
         <div
@@ -177,22 +198,24 @@ const Dashboard = () => {
         <div
           style={{
             display: "flex",
-            gap: "20px",
+            gap: "28px",
             flexWrap: "wrap",
             marginBottom: "28px",
-            padding: "14px 18px",
+            padding: "16px 20px",
             background: "var(--white)",
             border: "0.5px solid var(--gray-300)",
             borderRadius: "var(--border-radius-lg)",
+            boxShadow: "var(--shadow)",
+            borderLeft: "3px solid var(--gold)",
           }}
         >
           <div
             style={{
               fontSize: "10px",
-              fontWeight: "600",
-              color: "var(--gray-500)",
+              fontWeight: "700",
+              color: "var(--gold-dark)",
               textTransform: "uppercase",
-              letterSpacing: "0.04em",
+              letterSpacing: "0.06em",
               alignSelf: "center",
             }}
           >
@@ -201,15 +224,47 @@ const Dashboard = () => {
           {Object.entries(planUsage.usage).map(([key, stat]) => {
             const unlimited = stat.limit === null;
             const atCap = !unlimited && stat.used >= stat.limit;
+            const pct = unlimited ? 0 : Math.min(100, (stat.used / Math.max(stat.limit, 1)) * 100);
             return (
-              <div key={key} style={{ fontSize: "12px" }}>
-                <span style={{ fontWeight: "600", color: atCap ? "#c0504d" : "var(--charcoal)" }}>
-                  {stat.used}
-                </span>
-                <span style={{ color: "var(--gray-500)" }}>
-                  {" "}
-                  / {unlimited ? "∞" : stat.limit} {USAGE_LABELS[key]}
-                </span>
+              <div key={key} style={{ fontSize: "12px", minWidth: "120px" }}>
+                <div>
+                  <span
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: "700",
+                      color: atCap ? "var(--accent-dark)" : "var(--navy)",
+                    }}
+                  >
+                    {stat.used}
+                  </span>
+                  <span style={{ color: "var(--gray-500)" }}>
+                    {" "}
+                    / {unlimited ? "∞" : stat.limit}
+                  </span>
+                </div>
+                <div style={{ color: "var(--gray-600)", marginBottom: "6px" }}>
+                  {USAGE_LABELS[key]}
+                </div>
+                {!unlimited && (
+                  <div
+                    style={{
+                      height: "4px",
+                      borderRadius: "2px",
+                      background: "var(--gray-200)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${pct}%`,
+                        background: atCap ? "var(--accent-dark)" : "var(--gold)",
+                        borderRadius: "2px",
+                        transition: "width 0.5s ease",
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -230,6 +285,8 @@ const Dashboard = () => {
             border: "0.5px solid var(--gray-300)",
             borderRadius: "var(--border-radius-lg)",
             padding: "18px",
+            boxShadow: "var(--shadow)",
+            borderTop: "3px solid var(--accent)",
           }}
         >
           <div
@@ -237,23 +294,41 @@ const Dashboard = () => {
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: "12px",
+              marginBottom: "14px",
             }}
           >
-            <div
-              style={{
-                fontFamily: "Cinzel, serif",
-                fontSize: "12px",
-                fontWeight: "500",
-                color: "var(--navy)",
-                letterSpacing: "0.06em",
-              }}
-            >
-              MY TASKS
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span
+                style={{
+                  width: "26px",
+                  height: "26px",
+                  borderRadius: "50%",
+                  background: "var(--accent)",
+                  color: "var(--white)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "13px",
+                  flexShrink: 0,
+                }}
+              >
+                ☑
+              </span>
+              <div
+                style={{
+                  fontFamily: "Cinzel, serif",
+                  fontSize: "12px",
+                  fontWeight: "500",
+                  color: "var(--navy)",
+                  letterSpacing: "0.06em",
+                }}
+              >
+                MY TASKS
+              </div>
             </div>
             <div
               onClick={() => navigate("/tasks")}
-              style={{ fontSize: "11px", color: "var(--gray-500)", cursor: "pointer" }}
+              style={{ fontSize: "11px", color: "var(--accent-dark)", cursor: "pointer", fontWeight: "500" }}
             >
               View all →
             </div>
@@ -275,18 +350,23 @@ const Dashboard = () => {
                       display: "flex",
                       alignItems: "center",
                       gap: "10px",
-                      padding: "8px 0",
+                      padding: "9px 8px",
+                      margin: "0 -8px",
+                      borderRadius: "6px",
                       borderTop: i > 0 ? "0.5px solid var(--gray-100)" : "none",
+                      transition: "background 0.15s",
                     }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "var(--gray-100)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
                     <span
                       onClick={() => handleCompleteTask(task)}
                       title="Mark complete"
                       style={{
-                        width: "14px",
-                        height: "14px",
-                        borderRadius: "3px",
-                        border: "0.5px solid var(--gray-300)",
+                        width: "15px",
+                        height: "15px",
+                        borderRadius: "4px",
+                        border: "1.5px solid var(--accent)",
                         flexShrink: 0,
                         cursor: "pointer",
                       }}
@@ -313,8 +393,8 @@ const Dashboard = () => {
                       <div
                         style={{
                           fontSize: "11px",
-                          fontWeight: "500",
-                          color: due.overdue ? "#c0504d" : "var(--gray-500)",
+                          fontWeight: "600",
+                          color: due.overdue ? "var(--accent-dark)" : "var(--gray-500)",
                           flexShrink: 0,
                         }}
                       >
@@ -334,6 +414,8 @@ const Dashboard = () => {
             border: "0.5px solid var(--gray-300)",
             borderRadius: "var(--border-radius-lg)",
             padding: "18px",
+            boxShadow: "var(--shadow)",
+            borderTop: "3px solid var(--gold)",
           }}
         >
           <div
@@ -341,23 +423,41 @@ const Dashboard = () => {
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: "12px",
+              marginBottom: "14px",
             }}
           >
-            <div
-              style={{
-                fontFamily: "Cinzel, serif",
-                fontSize: "12px",
-                fontWeight: "500",
-                color: "var(--navy)",
-                letterSpacing: "0.06em",
-              }}
-            >
-              UPCOMING
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span
+                style={{
+                  width: "26px",
+                  height: "26px",
+                  borderRadius: "50%",
+                  background: "var(--gold)",
+                  color: "var(--white)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "13px",
+                  flexShrink: 0,
+                }}
+              >
+                ◈
+              </span>
+              <div
+                style={{
+                  fontFamily: "Cinzel, serif",
+                  fontSize: "12px",
+                  fontWeight: "500",
+                  color: "var(--navy)",
+                  letterSpacing: "0.06em",
+                }}
+              >
+                UPCOMING
+              </div>
             </div>
             <div
               onClick={() => navigate("/calendar")}
-              style={{ fontSize: "11px", color: "var(--gray-500)", cursor: "pointer" }}
+              style={{ fontSize: "11px", color: "var(--gold-dark)", cursor: "pointer", fontWeight: "500" }}
             >
               View calendar →
             </div>
@@ -374,9 +474,14 @@ const Dashboard = () => {
                 <div
                   key={`${occ._id}-${occ.occurrence_start}`}
                   style={{
-                    padding: "8px 0",
+                    padding: "9px 8px",
+                    margin: "0 -8px",
+                    borderRadius: "6px",
                     borderTop: i > 0 ? "0.5px solid var(--gray-100)" : "none",
+                    transition: "background 0.15s",
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--gray-100)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
                   <div
                     style={{
@@ -413,32 +518,50 @@ const Dashboard = () => {
             label: "Content Studio",
             desc: "Generate and review content",
             path: "/content",
+            icon: "✦",
+            color: "var(--accent)",
           },
           {
             label: "Flyers",
             desc: "Generate event flyers",
             path: "/flyers",
+            icon: "▣",
+            color: "var(--gold)",
           },
           {
             label: "Social Queue",
             desc: "Approve and schedule posts to Facebook & Instagram",
             path: "/social-queue",
+            icon: "⌘",
+            color: "var(--navy)",
           },
-          { label: "People", desc: "Directory and groups", path: "/people" },
+          {
+            label: "People",
+            desc: "Directory and groups",
+            path: "/people",
+            icon: "◎",
+            color: "var(--accent)",
+          },
           {
             label: "Communications",
             desc: "Draft emails to speakers and partners",
             path: "/communications",
+            icon: "✉",
+            color: "var(--gold)",
           },
           {
             label: "Calendar",
             desc: "Prayer calls, meetings, and upcoming events",
             path: "/calendar",
+            icon: "◈",
+            color: "var(--navy)",
           },
           {
             label: "Tasks",
             desc: "What you and your team need to get done",
             path: "/tasks",
+            icon: "☑",
+            color: "var(--accent)",
           },
         ].map((card) => (
           <div
@@ -451,19 +574,36 @@ const Dashboard = () => {
               padding: "20px",
               cursor: card.comingSoon ? "default" : "pointer",
               opacity: card.comingSoon ? 0.5 : 1,
-              transition: "border-color 0.15s, box-shadow 0.15s",
+              boxShadow: "var(--shadow)",
+              transition: "transform 0.15s, box-shadow 0.15s",
             }}
             onMouseEnter={(e) => {
               if (card.comingSoon) return;
-              e.currentTarget.style.borderColor = "var(--navy)";
-              e.currentTarget.style.boxShadow = "var(--shadow)";
+              e.currentTarget.style.transform = "translateY(-3px)";
+              e.currentTarget.style.boxShadow = "var(--shadow-md)";
             }}
             onMouseLeave={(e) => {
               if (card.comingSoon) return;
-              e.currentTarget.style.borderColor = "var(--gray-300)";
-              e.currentTarget.style.boxShadow = "none";
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "var(--shadow)";
             }}
           >
+            <span
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "50%",
+                background: card.color,
+                color: "var(--white)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "15px",
+                marginBottom: "12px",
+              }}
+            >
+              {card.icon}
+            </span>
             <div
               style={{
                 fontFamily: "Cinzel, serif",
