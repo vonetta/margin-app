@@ -4,6 +4,26 @@ import PageHeader from "../components/PageHeader";
 
 const ROLES = ["host", "speaker", "leader", "member", "staff"];
 
+// Display order and a fixed color per role, rather than the brand
+// accent/gold/navy rotation used for page-level icons — here the color
+// has to stay the same for a given role every time it appears, since
+// it's identifying which group a person belongs to.
+const ROLE_ORDER = ["host", "speaker", "leader", "staff", "member"];
+const ROLE_LABELS = {
+  host: "Hosts",
+  speaker: "Speakers",
+  leader: "Leaders",
+  staff: "Staff",
+  member: "Members",
+};
+const ROLE_COLORS = {
+  host: "var(--accent)",
+  speaker: "var(--gold-dark)",
+  leader: "var(--navy)",
+  staff: "var(--gray-600)",
+  member: "var(--gray-500)",
+};
+
 const labelStyle = {
   display: "block",
   fontSize: "10px",
@@ -52,6 +72,8 @@ const People = () => {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const fetchPeople = useCallback(async () => {
     setLoading(true);
@@ -79,12 +101,14 @@ const People = () => {
       bio: person.bio || "",
     });
     setError("");
+    setConfirmDelete(false);
   };
 
   const startNew = () => {
     setSelected("new");
     setForm(emptyForm);
     setError("");
+    setConfirmDelete(false);
   };
 
   const handleChange = (field) => (e) =>
@@ -113,10 +137,15 @@ const People = () => {
 
   const handleDelete = async () => {
     if (selected === "new" || !selected) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
     try {
       await client.delete(`/api/people/${selected._id}`);
       setSelected(null);
       setForm(emptyForm);
+      setConfirmDelete(false);
       await fetchPeople();
     } catch (err) {
       setError("Failed to delete");
@@ -177,7 +206,14 @@ const People = () => {
           gap: "16px",
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, title, or email..."
+            style={inputStyle}
+          />
+
           {loading ? (
             <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
               Loading roster...
@@ -194,65 +230,107 @@ const People = () => {
               No people yet. Add your first host or speaker.
             </div>
           ) : (
-            people.map((p) => {
-              const isSelected = selected !== "new" && selected?._id === p._id;
-              return (
-                <div
-                  key={p._id}
-                  onClick={() => selectPerson(p)}
-                  style={{
-                    border: `0.5px solid ${isSelected ? "var(--navy)" : "var(--gray-300)"}`,
-                    borderRadius: "var(--border-radius-lg)",
-                    padding: "14px",
-                    display: "flex",
-                    gap: "12px",
-                    cursor: "pointer",
-                    background: isSelected ? "#f4f8fb" : "var(--white)",
-                  }}
-                >
+            (() => {
+              const q = search.trim().toLowerCase();
+              const filtered = q
+                ? people.filter((p) =>
+                    [p.name, p.title, p.email].some((f) => (f || "").toLowerCase().includes(q)),
+                  )
+                : people;
+
+              if (filtered.length === 0) {
+                return (
+                  <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
+                    No one matches "{search}".
+                  </div>
+                );
+              }
+
+              const groups = ROLE_ORDER.map((role) => ({
+                role,
+                members: filtered.filter((p) => p.role === role),
+              })).filter((g) => g.members.length > 0);
+
+              return groups.map((group) => (
+                <div key={group.role}>
                   <div
                     style={{
-                      width: "44px",
-                      height: "44px",
-                      borderRadius: "50%",
-                      background: "var(--gray-200)",
-                      flexShrink: 0,
-                      overflow: "hidden",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "var(--gray-500)",
-                      fontSize: "16px",
+                      fontSize: "10px",
+                      fontWeight: "700",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      color: ROLE_COLORS[group.role],
+                      marginBottom: "8px",
                     }}
                   >
-                    {p.headshot_url ? (
-                      <img
-                        src={p.headshot_url}
-                        alt={p.name}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      />
-                    ) : (
-                      p.name?.[0]?.toUpperCase() || "?"
-                    )}
+                    {ROLE_LABELS[group.role]} ({group.members.length})
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: "500",
-                        color: "var(--navy)",
-                      }}
-                    >
-                      {p.name}
-                    </div>
-                    <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>
-                      {p.title ? `${p.title} · ` : ""}
-                      {p.role}
-                    </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
+                    {group.members.map((p) => {
+                      const isSelected = selected !== "new" && selected?._id === p._id;
+                      return (
+                        <div
+                          key={p._id}
+                          onClick={() => selectPerson(p)}
+                          style={{
+                            borderTop: `0.5px solid ${isSelected ? "var(--navy)" : "var(--gray-300)"}`,
+                            borderRight: `0.5px solid ${isSelected ? "var(--navy)" : "var(--gray-300)"}`,
+                            borderBottom: `0.5px solid ${isSelected ? "var(--navy)" : "var(--gray-300)"}`,
+                            borderLeft: `3px solid ${ROLE_COLORS[p.role] || "var(--gray-300)"}`,
+                            borderRadius: "var(--border-radius-lg)",
+                            padding: "14px",
+                            display: "flex",
+                            gap: "12px",
+                            cursor: "pointer",
+                            background: isSelected ? "#f4f8fb" : "var(--white)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: "44px",
+                              height: "44px",
+                              borderRadius: "50%",
+                              background: "var(--gray-200)",
+                              flexShrink: 0,
+                              overflow: "hidden",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "var(--gray-500)",
+                              fontSize: "16px",
+                            }}
+                          >
+                            {p.headshot_url ? (
+                              <img
+                                src={p.headshot_url}
+                                alt={p.name}
+                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                              />
+                            ) : (
+                              p.name?.[0]?.toUpperCase() || "?"
+                            )}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: "13px",
+                                fontWeight: "500",
+                                color: "var(--navy)",
+                              }}
+                            >
+                              {p.name}
+                            </div>
+                            <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>
+                              {p.title || ROLE_LABELS[p.role]?.replace(/s$/, "")}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              );
-            })
+              ));
+            })()
           )}
         </div>
 
@@ -413,20 +491,36 @@ const People = () => {
                   onClick={handleDelete}
                   style={{
                     padding: "8px 16px",
-                    background: "#fdf0f0",
-                    color: "#c0504d",
+                    background: confirmDelete ? "#c0504d" : "#fdf0f0",
+                    color: confirmDelete ? "var(--white)" : "#c0504d",
                     border: "0.5px solid #e8b4b4",
                     borderRadius: "var(--border-radius)",
                     fontSize: "12px",
                   }}
                 >
-                  Delete
+                  {confirmDelete ? "Confirm delete" : "Delete"}
+                </button>
+              )}
+              {selected !== "new" && confirmDelete && (
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  style={{
+                    padding: "8px 16px",
+                    background: "transparent",
+                    color: "var(--gray-600)",
+                    border: "0.5px solid var(--gray-300)",
+                    borderRadius: "var(--border-radius)",
+                    fontSize: "12px",
+                  }}
+                >
+                  ×
                 </button>
               )}
               <button
                 onClick={() => {
                   setSelected(null);
                   setForm(emptyForm);
+                  setConfirmDelete(false);
                 }}
                 style={{
                   padding: "8px 16px",
