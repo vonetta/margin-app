@@ -210,9 +210,10 @@ const MeetingRecap = () => {
         <div style={cardStyle}>
           <label style={labelStyle}>New transcript</label>
           <p style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "14px", lineHeight: 1.6 }}>
-            Download the transcript from Zoom's cloud recording (or paste it
-            directly), and AI drafts action items matched against your team
-            roster. Nothing gets assigned until you review and approve each one.
+            Upload a transcript — Zoom's cloud recording export, a PDF
+            summary, or plain text — or paste it directly, and AI drafts
+            action items matched against your team roster. Nothing gets
+            assigned until you review and approve each one.
           </p>
 
           <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
@@ -256,7 +257,7 @@ const MeetingRecap = () => {
           {inputMode === "file" ? (
             <input
               type="file"
-              accept=".vtt,.txt,text/plain,text/vtt"
+              accept=".vtt,.txt,.pdf,text/plain,text/vtt,application/pdf"
               onChange={(e) => setTranscriptFile(e.target.files?.[0] || null)}
               style={{ marginBottom: "10px", fontSize: "12px" }}
             />
