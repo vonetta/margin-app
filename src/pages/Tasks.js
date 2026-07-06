@@ -178,7 +178,7 @@ const Tasks = () => {
     } finally {
       setTeamOverviewLoading(false);
     }
-  }, [canSeeEveryonesTasks, teamOverviewStatus]);
+  }, [canSeeEveryonesTasks, teamOverviewStatus, ministryId]);
 
   useEffect(() => {
     if (tab === "everyone") fetchTeamOverview();
