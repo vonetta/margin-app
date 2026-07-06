@@ -4,6 +4,7 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
+import CreateMinistry from "./pages/CreateMinistry";
 import Dashboard from "./pages/Dashboard";
 import ContentStudio from "./pages/ContentStudio";
 import Communications from "./pages/Communications";
@@ -32,6 +33,7 @@ const App = () => {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/create-ministry" element={<CreateMinistry />} />
           <Route path="/join/:token" element={<JoinInvite />} />
           <Route
             path="/"
@@ -46,7 +48,7 @@ const App = () => {
           <Route
             path="/content"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireOnboarding>
                 <AppShell>
                   <ContentStudio />
                 </AppShell>
@@ -96,7 +98,7 @@ const App = () => {
           <Route
             path="/social-queue"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireOnboarding>
                 <AppShell>
                   <SocialQueue />
                 </AppShell>
@@ -106,7 +108,7 @@ const App = () => {
           <Route
             path="/flyers"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireOnboarding>
                 <AppShell>
                   <FlyerGenerator />
                 </AppShell>

@@ -312,11 +312,23 @@ const Team = () => {
                   justifyContent: "space-between",
                   alignItems: "center",
                   gap: "12px",
+                  boxShadow: "var(--shadow)",
                 }}
               >
                 <div>
                   <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--charcoal)" }}>{member.name}</div>
                   <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>{member.email}</div>
+                  {member.other_ministries?.length > 0 && (
+                    <div style={{ fontSize: "10px", color: "var(--gray-500)", marginTop: "4px" }}>
+                      Also in:{" "}
+                      {member.other_ministries.map((m, i) => (
+                        <span key={m.ministry_id}>
+                          {i > 0 && ", "}
+                          {m.name} <span style={{ color: "var(--gray-400)" }}>({m.role})</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <select
                   value={member.role}

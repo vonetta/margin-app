@@ -156,3 +156,33 @@ test("shows an empty state when no one has open tasks", async () => {
 
   expect(await screen.findByText("No open tasks assigned to anyone right now.")).toBeInTheDocument();
 });
+
+test("shows a member's other linked ministries when they belong to more than one", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/ministry/team") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "u1",
+            name: "Alex Admin",
+            email: "alex@ktm.com",
+            role: "admin",
+            other_ministries: [{ ministry_id: "salt-light", name: "Salt & Light", role: "admin" }],
+          },
+          { _id: "u2", name: "Tina Team", email: "tina@ktm.com", role: "team", other_ministries: [] },
+        ],
+      });
+    }
+    if (url === "/api/invites") return Promise.resolve({ data: [] });
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<Team />);
+
+  await screen.findByText("Alex Admin");
+  expect(screen.getByText(/Also in:/)).toBeInTheDocument();
+  expect(screen.getByText("Salt & Light")).toBeInTheDocument();
+  expect(screen.getByText("(admin)")).toBeInTheDocument();
+  // Tina has no other memberships, so no "Also in:" line for her.
+  expect(screen.getAllByText(/Also in:/).length).toBe(1);
+});

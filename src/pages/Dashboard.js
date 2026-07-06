@@ -36,6 +36,13 @@ const Dashboard = () => {
     (mId) => memberships.find((m) => m.ministry_id === mId)?.name || mId,
     [memberships],
   );
+  // Plan/billing info is admin-only in the UI — leaders get full
+  // operational access (calendar, flyers, tasks, etc.) but don't need to
+  // see subscription/usage details. The API itself stays open to any
+  // authenticated member (it's informational, not a security boundary),
+  // this is just what the Dashboard chooses to surface.
+  const currentRole = memberships.find((m) => m.ministry_id === ministryId)?.role;
+  const isAdmin = currentRole === "admin";
 
   const [myTasks, setMyTasks] = useState([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
@@ -43,11 +50,12 @@ const Dashboard = () => {
   const [loadingUpcoming, setLoadingUpcoming] = useState(false);
 
   useEffect(() => {
+    if (!isAdmin) return;
     client
       .get("/api/ministry/plan-usage")
       .then((res) => setPlanUsage(res.data))
       .catch(() => setPlanUsage(null));
-  }, [ministryId]);
+  }, [ministryId, isAdmin]);
 
   // Same cross-ministry aggregation pattern Tasks.js/Calendar.js already
   // use — one request per membership with its own x-ministry-id header,

@@ -19,7 +19,7 @@ jest.mock("../context/AuthContext", () => ({
 beforeEach(() => {
   client.get.mockReset();
   client.put.mockReset();
-  mockUser = { name: "Test User" };
+  mockUser = { name: "Test User", ministries: [{ ministry_id: "ktm-test", role: "admin" }] };
 });
 
 test("shows plan usage with limits for a capped plan", async () => {
@@ -67,6 +67,19 @@ test("does not break the dashboard if plan usage fails to load", async () => {
 
   expect(await screen.findByText(/Welcome back/)).toBeInTheDocument();
   expect(screen.queryByText(/plan$/)).not.toBeInTheDocument();
+});
+
+test("never fetches or shows plan/billing usage for a non-admin (leader or team)", async () => {
+  mockUser = { name: "Test User", ministries: [{ ministry_id: "ktm-test", role: "leader" }] };
+  client.get.mockResolvedValue({
+    data: { plan: "small", usage: { team_members: { used: 3, limit: 5 } } },
+  });
+
+  render(<Dashboard />);
+
+  await screen.findByText(/Welcome back/);
+  expect(screen.queryByText(/plan$/)).not.toBeInTheDocument();
+  expect(client.get).not.toHaveBeenCalledWith("/api/ministry/plan-usage");
 });
 
 describe("My Tasks and Upcoming widgets", () => {

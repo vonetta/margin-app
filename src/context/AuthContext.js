@@ -49,10 +49,11 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = async (email, password, selectedMinistryId) => {
-    const res = await client.post("/api/auth/login", { email, password });
-    const { token, user } = res.data;
-
+  // Shared by login, self-registration, invite acceptance, and brand-new
+  // ministry creation — every one of these ends the same way: a token and
+  // a user land in hand, and the app needs a live session for whichever
+  // ministry they should land in.
+  const establishSession = async (token, user, selectedMinistryId) => {
     const targetMinistryId =
       selectedMinistryId || user.ministries[0]?.ministry_id;
 
@@ -69,24 +70,24 @@ export const AuthProvider = ({ children }) => {
     return user;
   };
 
+  const login = async (email, password, selectedMinistryId) => {
+    const res = await client.post("/api/auth/login", { email, password });
+    return establishSession(res.data.token, res.data.user, selectedMinistryId);
+  };
+
   // Shared by direct self-registration and invite acceptance — both end
   // with the same "create account, establish a session" shape as login.
   const register = async (payload) => {
     const res = await client.post("/api/auth/register", payload);
-    const { token, user } = res.data;
-    const targetMinistryId = user.ministries[0]?.ministry_id;
+    return establishSession(res.data.token, res.data.user);
+  };
 
-    localStorage.setItem("margin_token", token);
-    localStorage.setItem("margin_user", JSON.stringify(user));
-    localStorage.setItem("margin_ministry_id", targetMinistryId);
-
-    setUser(user);
-    setMinistryId(targetMinistryId);
-
-    await loadMinistryBranding(targetMinistryId);
-    await refreshUser();
-
-    return user;
+  // Brand-new ministry, created from scratch (no existing ministry_id to
+  // join) — lands the founding admin straight into the ministry they just
+  // created, same as register().
+  const registerMinistry = async (payload) => {
+    const res = await client.post("/api/auth/register-ministry", payload);
+    return establishSession(res.data.token, res.data.user, payload.ministry_id);
   };
 
   const logout = () => {
@@ -114,6 +115,7 @@ export const AuthProvider = ({ children }) => {
         loading,
         login,
         register,
+        registerMinistry,
         logout,
         switchMinistry,
         refreshUser,
