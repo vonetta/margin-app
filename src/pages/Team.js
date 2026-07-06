@@ -10,18 +10,6 @@ const ROLES = [
 
 const emptyInviteForm = { name: "", email: "", role: "team" };
 
-// Cycled per-person, not tied to role — this is just a way to visually
-// tell each person's task column apart at a glance in the overview grid.
-const AVATAR_COLORS = ["var(--accent)", "var(--gold-dark)", "var(--navy)", "#7a5c8a", "#3a7a6a"];
-const initials = (name) =>
-  name
-    .split(" ")
-    .map((p) => p[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-
 const mailtoInvite = (invite) => {
   const subject = "You're invited to join Margin";
   const body = `Hi${invite.name ? ` ${invite.name}` : ""},\n\nYou've been invited to join the team on Margin. Use this link to set up your account:\n\n${invite.invite_link}\n\nThis link expires in 14 days.`;
@@ -38,8 +26,6 @@ const Team = () => {
   const [inviteForm, setInviteForm] = useState(emptyInviteForm);
   const [invitingSaving, setInvitingSaving] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
-  const [overview, setOverview] = useState({});
-  const [loadingOverview, setLoadingOverview] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -57,22 +43,9 @@ const Team = () => {
     }
   }, []);
 
-  const fetchOverview = useCallback(async () => {
-    setLoadingOverview(true);
-    try {
-      const res = await client.get("/api/tasks/team-overview");
-      setOverview(res.data);
-    } catch (err) {
-      setOverview({});
-    } finally {
-      setLoadingOverview(false);
-    }
-  }, []);
-
   useEffect(() => {
     fetchAll();
-    fetchOverview();
-  }, [fetchAll, fetchOverview]);
+  }, [fetchAll]);
 
   const handleRoleChange = async (member, newRole) => {
     if (newRole === member.role) return;
@@ -167,156 +140,6 @@ const Team = () => {
           {error}
         </div>
       )}
-
-      <div
-        style={{
-          background: "var(--white)",
-          border: "0.5px solid var(--gray-300)",
-          borderRadius: "var(--border-radius-lg)",
-          padding: "20px",
-          marginBottom: "20px",
-          boxShadow: "var(--shadow)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-          <span
-            style={{
-              width: "26px",
-              height: "26px",
-              borderRadius: "50%",
-              background: "var(--gold)",
-              color: "var(--white)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "13px",
-              flexShrink: 0,
-            }}
-          >
-            ⌘
-          </span>
-          <div
-            style={{
-              fontFamily: "Cinzel, serif",
-              fontSize: "12px",
-              fontWeight: "500",
-              color: "var(--navy)",
-              letterSpacing: "0.06em",
-            }}
-          >
-            TEAM OVERVIEW
-          </div>
-        </div>
-        {loadingOverview ? (
-          <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>Loading...</div>
-        ) : Object.keys(overview).length === 0 ? (
-          <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
-            No open tasks assigned to anyone right now.
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-              gap: "14px",
-            }}
-          >
-            {Object.entries(overview).map(([name, tasks], i) => {
-              const color = AVATAR_COLORS[i % AVATAR_COLORS.length];
-              return (
-                <div
-                  key={name}
-                  style={{
-                    background: "var(--white)",
-                    border: "0.5px solid var(--gray-200)",
-                    borderRadius: "var(--border-radius)",
-                    padding: "14px",
-                    boxShadow: "var(--shadow)",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-                    <span
-                      style={{
-                        width: "24px",
-                        height: "24px",
-                        borderRadius: "50%",
-                        background: color,
-                        color: "var(--white)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "10px",
-                        fontWeight: "700",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {initials(name)}
-                    </span>
-                    <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--charcoal)" }}>
-                      {name}
-                      <span style={{ color: "var(--gray-500)", fontWeight: "400" }}> ({tasks.length})</span>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
-                    {tasks.map((t) => {
-                      const due = t.due_date && new Date(t.due_date);
-                      const overdue = due && due < new Date(new Date().toDateString());
-                      return (
-                        <div
-                          key={t._id}
-                          title={t.title}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: "8px",
-                            padding: "7px 6px",
-                            margin: "0 -6px",
-                            borderRadius: "6px",
-                            borderTop: `0.5px solid var(--gray-100)`,
-                            transition: "background 0.15s",
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--gray-100)")}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                        >
-                          <div
-                            style={{
-                              fontSize: "11px",
-                              color: "var(--gray-700, var(--charcoal))",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              flex: 1,
-                              minWidth: 0,
-                            }}
-                          >
-                            {t.title}
-                          </div>
-                          {due && (
-                            <span
-                              style={{
-                                fontSize: "9px",
-                                fontWeight: "600",
-                                padding: "2px 6px",
-                                borderRadius: "10px",
-                                flexShrink: 0,
-                                color: overdue ? "#c0504d" : "var(--gray-600)",
-                                background: overdue ? "#fdf0f0" : "var(--gray-100)",
-                              }}
-                            >
-                              {due.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
       {showInviteForm && (
         <div
