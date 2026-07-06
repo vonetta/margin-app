@@ -70,12 +70,18 @@ const Tasks = () => {
     [memberships],
   );
 
+  const currentRole = memberships.find((m) => m.ministry_id === ministryId)?.role;
+  const canSeeEveryonesTasks = currentRole === "admin" || currentRole === "leader";
+
   const [tab, setTab] = useState("mine");
   const [myTasks, setMyTasks] = useState([]);
   const [assignedByMe, setAssignedByMe] = useState([]);
   const [approvals, setApprovals] = useState([]);
   const [showDone, setShowDone] = useState(false);
   const [team, setTeam] = useState([]);
+  const [teamOverview, setTeamOverview] = useState({});
+  const [teamOverviewStatus, setTeamOverviewStatus] = useState("open");
+  const [teamOverviewLoading, setTeamOverviewLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -149,6 +155,35 @@ const Tasks = () => {
     fetchApprovals();
   }, [fetchApprovals]);
 
+  // "Everyone's tasks" is admin/leader only (the backend gates it the
+  // same way), and only ever reflects the currently active ministry —
+  // unlike "My tasks", it doesn't aggregate across memberships, since
+  // "everyone" only makes sense scoped to one ministry at a time.
+  const fetchTeamOverview = useCallback(async () => {
+    if (!canSeeEveryonesTasks) return;
+    setTeamOverviewLoading(true);
+    try {
+      const res = await client.get("/api/tasks/team-overview", {
+        params: { status: teamOverviewStatus },
+      });
+      const tagged = Object.fromEntries(
+        Object.entries(res.data || {}).map(([name, tasks]) => [
+          name,
+          tasks.map((t) => ({ ...t, ministry_id: ministryId })),
+        ]),
+      );
+      setTeamOverview(tagged);
+    } catch (err) {
+      setTeamOverview({});
+    } finally {
+      setTeamOverviewLoading(false);
+    }
+  }, [canSeeEveryonesTasks, teamOverviewStatus]);
+
+  useEffect(() => {
+    if (tab === "everyone") fetchTeamOverview();
+  }, [tab, fetchTeamOverview]);
+
   useEffect(() => {
     client
       .get("/api/ministry/team")
@@ -182,7 +217,7 @@ const Tasks = () => {
         recurrence_rule: buildTaskRecurrenceRule(form.repeatFreq, form.repeatInterval) || undefined,
       });
       resetForm();
-      await Promise.all([refreshMine(), refreshAssignedByMe()]);
+      await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
     } catch (err) {
       setError(err.response?.data?.errors?.[0]?.msg || err.response?.data?.error || "Failed to create task");
     } finally {
@@ -231,7 +266,7 @@ const Tasks = () => {
         { headers: { "x-ministry-id": task.ministry_id } },
       );
       cancelEdit();
-      await Promise.all([refreshMine(), refreshAssignedByMe()]);
+      await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
     } catch (err) {
       setError(err.response?.data?.errors?.[0]?.msg || err.response?.data?.error || "Failed to save changes");
     } finally {
@@ -244,7 +279,7 @@ const Tasks = () => {
       await client.put(`/api/tasks/${task._id}/complete`, null, {
         headers: { "x-ministry-id": task.ministry_id },
       });
-      await Promise.all([refreshMine(), refreshAssignedByMe()]);
+      await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
     } catch (err) {
       setError("Failed to complete task");
     }
@@ -255,7 +290,7 @@ const Tasks = () => {
       await client.put(`/api/tasks/${task._id}/reopen`, null, {
         headers: { "x-ministry-id": task.ministry_id },
       });
-      await Promise.all([refreshMine(), refreshAssignedByMe()]);
+      await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
     } catch (err) {
       setError("Failed to reopen task");
     }
@@ -268,7 +303,7 @@ const Tasks = () => {
       });
       setConfirmDeleteId(null);
       if (editingTaskId === task._id) cancelEdit();
-      await Promise.all([refreshMine(), refreshAssignedByMe()]);
+      await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
     } catch (err) {
       setError("Failed to delete task");
     }
@@ -605,6 +640,7 @@ const Tasks = () => {
           { key: "mine", label: `My tasks${openCount ? ` (${openCount})` : ""}` },
           { key: "assigned", label: "Assigned by me" },
           { key: "approvals", label: `Needs approval${approvals.length ? ` (${approvals.length})` : ""}` },
+          ...(canSeeEveryonesTasks ? [{ key: "everyone", label: "Everyone's tasks" }] : []),
         ].map((t) => (
           <button
             key={t.key}
@@ -860,6 +896,73 @@ const Tasks = () => {
               <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--charcoal)" }}>{event.title}</div>
               <div style={{ fontSize: "11px", color: "var(--gray-500)", marginTop: "4px" }}>
                 Calendar event awaiting approval — review it on the Calendar page
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "everyone" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{ display: "flex", gap: "4px" }}>
+            {[
+              { key: "open", label: "Open" },
+              { key: "all", label: "Open + completed" },
+            ].map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setTeamOverviewStatus(s.key)}
+                style={{
+                  padding: "4px 12px",
+                  borderRadius: "14px",
+                  border: "0.5px solid var(--gray-300)",
+                  background: teamOverviewStatus === s.key ? "var(--gray-200)" : "transparent",
+                  color: "var(--charcoal)",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          {teamOverviewLoading && (
+            <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>Loading...</div>
+          )}
+
+          {!teamOverviewLoading && Object.keys(teamOverview).length === 0 && (
+            <div
+              style={{
+                background: "var(--white)",
+                border: "0.5px solid var(--gray-300)",
+                borderRadius: "var(--border-radius-lg)",
+                padding: "32px",
+                textAlign: "center",
+                fontSize: "12px",
+                color: "var(--gray-500)",
+              }}
+            >
+              No tasks to show.
+            </div>
+          )}
+
+          {Object.entries(teamOverview).map(([name, tasks]) => (
+            <div key={name}>
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: "700",
+                  color: "var(--gray-600)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  marginBottom: "8px",
+                }}
+              >
+                {name} <span style={{ fontWeight: "400", color: "var(--gray-400)" }}>({tasks.length})</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {tasks.map((t) => renderTask(t))}
               </div>
             </div>
           ))}

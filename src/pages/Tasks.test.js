@@ -312,3 +312,63 @@ test("approvals tab only queries ministries where the user is admin or leader", 
   expect(eventCalls.length).toBe(1);
   expect(eventCalls[0][1].headers["x-ministry-id"]).toBe("ktm-test");
 });
+
+describe("Everyone's tasks tab", () => {
+  test("is hidden for a plain team member", async () => {
+    render(<Tasks />);
+    await screen.findByText(/My tasks/);
+    expect(screen.queryByText("Everyone's tasks")).not.toBeInTheDocument();
+  });
+
+  test("shows tasks grouped by assignee for an admin, defaulting to open only", async () => {
+    mockUseAuth.mockReturnValue({
+      ministryId: "ktm-test",
+      user: {
+        ministries: [{ ministry_id: "ktm-test", role: "admin", name: "KTM Test", color: "#03293F" }],
+      },
+    });
+    client.get.mockImplementation((url, opts) => {
+      if (url === "/api/tasks") return Promise.resolve({ data: [] });
+      if (url === "/api/events") return Promise.resolve({ data: [] });
+      if (url === "/api/tasks/team-overview") {
+        expect(opts.params.status).toBe("open");
+        return Promise.resolve({
+          data: { "Tina Team": [{ _id: "t1", title: "Rent the van", status: "open" }] },
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    render(<Tasks />);
+    fireEvent.click(await screen.findByText("Everyone's tasks"));
+
+    expect(await screen.findByText("Rent the van")).toBeInTheDocument();
+    expect(screen.getByText(/Tina Team/)).toBeInTheDocument();
+  });
+
+  test("switching to 'Open + completed' refetches with status=all", async () => {
+    mockUseAuth.mockReturnValue({
+      ministryId: "ktm-test",
+      user: {
+        ministries: [{ ministry_id: "ktm-test", role: "leader", name: "KTM Test", color: "#03293F" }],
+      },
+    });
+    client.get.mockImplementation((url, opts) => {
+      if (url === "/api/tasks") return Promise.resolve({ data: [] });
+      if (url === "/api/events") return Promise.resolve({ data: [] });
+      if (url === "/api/tasks/team-overview") return Promise.resolve({ data: {} });
+      return Promise.resolve({ data: [] });
+    });
+
+    render(<Tasks />);
+    fireEvent.click(await screen.findByText("Everyone's tasks"));
+    await screen.findByText("No tasks to show.");
+
+    fireEvent.click(screen.getByText("Open + completed"));
+
+    await waitFor(() => {
+      const calls = client.get.mock.calls.filter(([url]) => url === "/api/tasks/team-overview");
+      expect(calls[calls.length - 1][1].params.status).toBe("all");
+    });
+  });
+});
