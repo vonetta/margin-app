@@ -333,7 +333,7 @@ describe("Everyone's tasks tab", () => {
       if (url === "/api/tasks/team-overview") {
         expect(opts.params.status).toBe("open");
         return Promise.resolve({
-          data: { "Tina Team": [{ _id: "t1", title: "Rent the van", status: "open" }] },
+          data: { u2: { name: "Tina Team", tasks: [{ _id: "t1", title: "Rent the van", status: "open" }] } },
         });
       }
       return Promise.resolve({ data: [] });
@@ -344,6 +344,84 @@ describe("Everyone's tasks tab", () => {
 
     expect(await screen.findByText("Rent the van")).toBeInTheDocument();
     expect(screen.getByText(/Tina Team/)).toBeInTheDocument();
+  });
+
+  test("dragging a card into another person's column reassigns it", async () => {
+    mockUseAuth.mockReturnValue({
+      ministryId: "ktm-test",
+      user: {
+        ministries: [{ ministry_id: "ktm-test", role: "admin", name: "KTM Test", color: "#03293F" }],
+      },
+    });
+    client.get.mockImplementation((url) => {
+      if (url === "/api/tasks") return Promise.resolve({ data: [] });
+      if (url === "/api/events") return Promise.resolve({ data: [] });
+      if (url === "/api/tasks/team-overview") {
+        return Promise.resolve({
+          data: {
+            u1: { name: "Alex Admin", tasks: [{ _id: "t1", title: "Rent the van", status: "open", assigned_to: "u1" }] },
+            u2: { name: "Tina Team", tasks: [] },
+          },
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+    client.put.mockResolvedValue({ data: {} });
+
+    render(<Tasks />);
+    fireEvent.click(await screen.findByText("Everyone's tasks"));
+    const card = await screen.findByText("Rent the van");
+
+    fireEvent.dragStart(card);
+    fireEvent.drop(screen.getByText(/Tina Team/));
+
+    await waitFor(() =>
+      expect(client.put).toHaveBeenCalledWith(
+        "/api/tasks/t1",
+        { assigned_to: "u2" },
+        expect.anything(),
+      ),
+    );
+  });
+
+  test("dragging a card into the Done column completes it", async () => {
+    mockUseAuth.mockReturnValue({
+      ministryId: "ktm-test",
+      user: {
+        ministries: [{ ministry_id: "ktm-test", role: "admin", name: "KTM Test", color: "#03293F" }],
+      },
+    });
+    client.get.mockImplementation((url) => {
+      if (url === "/api/tasks") return Promise.resolve({ data: [] });
+      if (url === "/api/events") return Promise.resolve({ data: [] });
+      if (url === "/api/tasks/team-overview") {
+        return Promise.resolve({
+          data: {
+            u1: {
+              name: "Alex Admin",
+              tasks: [{ _id: "t1", title: "Rent the van", status: "open", assigned_to: "u1" }],
+            },
+          },
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+    client.put.mockResolvedValue({ data: {} });
+
+    render(<Tasks />);
+    fireEvent.click(await screen.findByText("Everyone's tasks"));
+    const card = await screen.findByText("Rent the van");
+
+    fireEvent.dragStart(card);
+    fireEvent.drop(screen.getByText(/Done/));
+
+    await waitFor(() =>
+      expect(client.put).toHaveBeenCalledWith(
+        "/api/tasks/t1/complete",
+        null,
+        expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
+      ),
+    );
   });
 
   test("switching to 'Open + completed' refetches with status=all", async () => {

@@ -82,6 +82,8 @@ const Tasks = () => {
   const [teamOverview, setTeamOverview] = useState({});
   const [teamOverviewStatus, setTeamOverviewStatus] = useState("open");
   const [teamOverviewLoading, setTeamOverviewLoading] = useState(false);
+  const [draggedTask, setDraggedTask] = useState(null);
+  const [dragOverColumn, setDragOverColumn] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -166,10 +168,12 @@ const Tasks = () => {
       const res = await client.get("/api/tasks/team-overview", {
         params: { status: teamOverviewStatus },
       });
+      // Keyed by user id (not name) — a board column's key doubles as
+      // the real assigned_to value for drag-to-reassign.
       const tagged = Object.fromEntries(
-        Object.entries(res.data || {}).map(([name, tasks]) => [
-          name,
-          tasks.map((t) => ({ ...t, ministry_id: ministryId })),
+        Object.entries(res.data || {}).map(([userId, { name, tasks }]) => [
+          userId,
+          { name, tasks: tasks.map((t) => ({ ...t, ministry_id: ministryId })) },
         ]),
       );
       setTeamOverview(tagged);
@@ -311,6 +315,38 @@ const Tasks = () => {
 
   const visibleMine = myTasks.filter((t) => (showDone ? true : t.status === "open"));
   const openCount = myTasks.filter((t) => t.status === "open").length;
+
+  // Dropping a card onto a person column reassigns it (reopening first if
+  // it came from Done); dropping onto Done completes it. A no-op drop
+  // (same column, already in that state) skips the network call.
+  const handleBoardDrop = async (task, targetKey) => {
+    setDragOverColumn(null);
+    try {
+      if (targetKey === "done") {
+        if (task.status !== "done") {
+          await client.put(`/api/tasks/${task._id}/complete`, null, {
+            headers: { "x-ministry-id": task.ministry_id },
+          });
+        }
+      } else {
+        if (task.status === "done") {
+          await client.put(`/api/tasks/${task._id}/reopen`, null, {
+            headers: { "x-ministry-id": task.ministry_id },
+          });
+        }
+        if (task.assigned_to !== targetKey) {
+          await client.put(
+            `/api/tasks/${task._id}`,
+            { assigned_to: targetKey },
+            { headers: { "x-ministry-id": task.ministry_id } },
+          );
+        }
+      }
+      await fetchTeamOverview();
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to update this task");
+    }
+  };
 
   const renderEditForm = (task) => (
     <div
@@ -947,25 +983,167 @@ const Tasks = () => {
             </div>
           )}
 
-          {Object.entries(teamOverview).map(([name, tasks]) => (
-            <div key={name}>
-              <div
-                style={{
-                  fontSize: "11px",
-                  fontWeight: "700",
-                  color: "var(--gray-600)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                  marginBottom: "8px",
-                }}
-              >
-                {name} <span style={{ fontWeight: "400", color: "var(--gray-400)" }}>({tasks.length})</span>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {tasks.map((t) => renderTask(t))}
-              </div>
+          {Object.keys(teamOverview).length > 0 && (
+            <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "8px" }}>
+              {Object.entries(teamOverview).map(([userId, { name, tasks }]) => {
+                const activeTasks = tasks.filter((t) => t.status !== "done");
+                return (
+                  <div
+                    key={userId}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragOverColumn(userId);
+                    }}
+                    onDragLeave={() => setDragOverColumn(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedTask) handleBoardDrop(draggedTask, userId);
+                    }}
+                    style={{
+                      minWidth: "240px",
+                      width: "240px",
+                      flexShrink: 0,
+                      background: dragOverColumn === userId ? "var(--gray-200)" : "var(--gray-100)",
+                      border: "0.5px solid var(--gray-300)",
+                      borderRadius: "var(--border-radius-lg)",
+                      padding: "12px",
+                      transition: "background 0.1s",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "700",
+                        color: "var(--gray-600)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.04em",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      {name} <span style={{ fontWeight: "400", color: "var(--gray-400)" }}>({activeTasks.length})</span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {activeTasks.map((t) => {
+                        const due = formatDue(t.due_date);
+                        return (
+                          <div
+                            key={t._id}
+                            draggable
+                            onDragStart={() => setDraggedTask(t)}
+                            onDragEnd={() => setDraggedTask(null)}
+                            style={{
+                              background: "var(--white)",
+                              border: "0.5px solid var(--gray-300)",
+                              borderRadius: "var(--border-radius)",
+                              padding: "10px",
+                              boxShadow: "var(--shadow)",
+                              cursor: "grab",
+                            }}
+                          >
+                            <div style={{ fontSize: "12px", color: "var(--charcoal)" }}>{t.title}</div>
+                            {due && (
+                              <div
+                                style={{
+                                  marginTop: "6px",
+                                  display: "inline-block",
+                                  fontSize: "9px",
+                                  fontWeight: "600",
+                                  padding: "2px 6px",
+                                  borderRadius: "10px",
+                                  color: due.overdue ? "#c0504d" : "var(--gray-600)",
+                                  background: due.overdue ? "#fdf0f0" : "var(--gray-200)",
+                                }}
+                              >
+                                {due.label}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {activeTasks.length === 0 && (
+                        <div style={{ fontSize: "11px", color: "var(--gray-400)", fontStyle: "italic" }}>
+                          Nothing here
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {(() => {
+                const doneTasks = Object.values(teamOverview).flatMap(({ name, tasks }) =>
+                  tasks.filter((t) => t.status === "done").map((t) => ({ ...t, assigneeName: name })),
+                );
+                return (
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragOverColumn("done");
+                    }}
+                    onDragLeave={() => setDragOverColumn(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedTask) handleBoardDrop(draggedTask, "done");
+                    }}
+                    style={{
+                      minWidth: "240px",
+                      width: "240px",
+                      flexShrink: 0,
+                      background: dragOverColumn === "done" ? "var(--gray-200)" : "#f1f7f2",
+                      border: "0.5px solid var(--gray-300)",
+                      borderRadius: "var(--border-radius-lg)",
+                      padding: "12px",
+                      transition: "background 0.1s",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "700",
+                        color: "#3a7a4a",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.04em",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      ✓ Done <span style={{ fontWeight: "400", color: "var(--gray-400)" }}>({doneTasks.length})</span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {doneTasks.map((t) => (
+                        <div
+                          key={t._id}
+                          draggable
+                          onDragStart={() => setDraggedTask(t)}
+                          onDragEnd={() => setDraggedTask(null)}
+                          style={{
+                            background: "var(--white)",
+                            border: "0.5px solid var(--gray-300)",
+                            borderRadius: "var(--border-radius)",
+                            padding: "10px",
+                            boxShadow: "var(--shadow)",
+                            cursor: "grab",
+                            opacity: 0.7,
+                          }}
+                        >
+                          <div style={{ fontSize: "12px", color: "var(--charcoal)", textDecoration: "line-through" }}>
+                            {t.title}
+                          </div>
+                          <div style={{ fontSize: "10px", color: "var(--gray-500)", marginTop: "4px" }}>
+                            {t.assigneeName}
+                          </div>
+                        </div>
+                      ))}
+                      {doneTasks.length === 0 && (
+                        <div style={{ fontSize: "11px", color: "var(--gray-400)", fontStyle: "italic" }}>
+                          Drag a task here to complete it
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>
