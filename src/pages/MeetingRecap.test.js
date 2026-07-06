@@ -143,3 +143,95 @@ test("shows a restricted message for a team-role user", async () => {
     await screen.findByText("Only admins and leaders can view and manage meeting recaps."),
   ).toBeInTheDocument();
 });
+
+describe("with an org family (parent/sub-ministry)", () => {
+  const familyDraft = {
+    _id: "draft2",
+    meeting_title: "Shared Leadership Meeting",
+    meeting_date: "2026-07-01T00:00:00Z",
+    created_at: "2026-07-01T00:00:00Z",
+    ministry_id: "ktm-test",
+    tasks: [
+      {
+        _id: "task1",
+        description: "Rent the van",
+        assignee_name_raw: "Monita",
+        matched_user_id: "u2",
+        due_date: null,
+        target_ministry_id: "salt-light-test",
+        ministry_uncertain: true,
+        status: "pending_review",
+      },
+      {
+        _id: "task2",
+        description: "Confirm KTM Sunday service",
+        assignee_name_raw: null,
+        matched_user_id: null,
+        due_date: null,
+        target_ministry_id: "ktm-test",
+        ministry_uncertain: false,
+        status: "pending_review",
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    client.get.mockImplementation((url, opts) => {
+      if (url === "/api/ministry/family") {
+        return Promise.resolve({
+          data: [
+            { ministry_id: "ktm-test", name: "KTM Test" },
+            { ministry_id: "salt-light-test", name: "Salt & Light Test" },
+          ],
+        });
+      }
+      if (url === "/api/ministry/team") {
+        if (opts?.headers?.["x-ministry-id"] === "salt-light-test") {
+          return Promise.resolve({ data: [{ _id: "u2", name: "Dr. Monitta Williams" }] });
+        }
+        return Promise.resolve({ data: [{ _id: "u1", name: "Prophetess Mesha" }] });
+      }
+      if (url === "/api/meetings/transcripts") return Promise.resolve({ data: [familyDraft] });
+      return Promise.resolve({ data: [] });
+    });
+  });
+
+  test("flags an uncertain ministry guess and shows a quiet ministry name otherwise", async () => {
+    render(<MeetingRecap />);
+
+    await screen.findByText("Rent the van");
+    expect(screen.getAllByText(/Salt & Light Test/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/unsure — check this one/)).toBeInTheDocument();
+    expect(screen.getAllByText(/KTM Test/).length).toBeGreaterThan(0);
+  });
+
+  test("shows a live per-ministry task-count summary", async () => {
+    render(<MeetingRecap />);
+    expect(await screen.findByText(/Where these land/)).toBeInTheDocument();
+    expect(screen.getByText(/Salt & Light Test \(1\)/)).toBeInTheDocument();
+    expect(screen.getByText(/KTM Test \(1\)/)).toBeInTheDocument();
+  });
+
+  test("changing the ministry dropdown while editing clears the assignee and saves target_ministry_id", async () => {
+    client.put.mockResolvedValue({ data: familyDraft });
+
+    render(<MeetingRecap />);
+    await screen.findByText("Rent the van");
+
+    fireEvent.click(screen.getAllByText("✎ Edit")[0]);
+
+    const ministrySelect = screen.getByDisplayValue("Salt & Light Test");
+    fireEvent.change(ministrySelect, { target: { value: "ktm-test" } });
+
+    expect(screen.getByDisplayValue("No assignee")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Save"));
+
+    await waitFor(() =>
+      expect(client.put).toHaveBeenCalledWith(
+        "/api/meetings/transcripts/draft2/tasks/task1",
+        expect.objectContaining({ target_ministry_id: "ktm-test", matched_user_id: null }),
+      ),
+    );
+  });
+});

@@ -44,6 +44,8 @@ const MeetingRecap = () => {
 
   const [error, setError] = useState("");
   const [team, setTeam] = useState([]);
+  const [family, setFamily] = useState([]); // this ministry + parent/siblings, if any
+  const [rostersByMinistry, setRostersByMinistry] = useState({});
   const [drafts, setDrafts] = useState([]);
   const [loadingDrafts, setLoadingDrafts] = useState(false);
 
@@ -58,6 +60,7 @@ const MeetingRecap = () => {
   const [editDescription, setEditDescription] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
   const [editAssignee, setEditAssignee] = useState("");
+  const [editMinistry, setEditMinistry] = useState("");
 
   const fetchTeam = useCallback(async () => {
     try {
@@ -65,6 +68,33 @@ const MeetingRecap = () => {
       setTeam(res.data);
     } catch (err) {
       setTeam([]);
+    }
+  }, []);
+
+  // The org family (this ministry + parent/siblings) only matters for
+  // ministries set up with that relationship — a standalone ministry gets
+  // family = [itself], and every cross-ministry control below stays
+  // hidden. Rosters are fetched per-ministry (never merged) so the
+  // assignee dropdown for a task only ever offers people who are
+  // actually members of whichever ministry that task targets.
+  const fetchFamilyAndRosters = useCallback(async () => {
+    try {
+      const res = await client.get("/api/ministry/family");
+      const familyList = res.data || [];
+      setFamily(familyList);
+
+      const entries = await Promise.all(
+        familyList.map((m) =>
+          client
+            .get("/api/ministry/team", { headers: { "x-ministry-id": m.ministry_id } })
+            .then((r) => [m.ministry_id, r.data])
+            .catch(() => [m.ministry_id, []]),
+        ),
+      );
+      setRostersByMinistry(Object.fromEntries(entries));
+    } catch (err) {
+      setFamily([]);
+      setRostersByMinistry({});
     }
   }, []);
 
@@ -83,11 +113,19 @@ const MeetingRecap = () => {
   useEffect(() => {
     if (canEdit) {
       fetchTeam();
+      fetchFamilyAndRosters();
       fetchDrafts();
     }
-  }, [canEdit, fetchTeam, fetchDrafts]);
+  }, [canEdit, fetchTeam, fetchFamilyAndRosters, fetchDrafts]);
 
-  const nameForUser = (userId) => team.find((m) => m._id === userId)?.name;
+  // IDs are unique across the whole system, so looking a name up by id is
+  // safe against a merged view — the collision risk that matters is only
+  // ever about matching a bare name against the wrong ministry's roster,
+  // which is handled server-side, never here.
+  const allKnownMembers = Object.values(rostersByMinistry).flat();
+  const nameForUser = (userId) =>
+    team.find((m) => m._id === userId)?.name || allKnownMembers.find((m) => m._id === userId)?.name;
+  const nameForMinistry = (id) => family.find((m) => m.ministry_id === id)?.name || id;
 
   const handleExtract = async () => {
     if (inputMode === "file" && !transcriptFile) {
@@ -122,11 +160,21 @@ const MeetingRecap = () => {
     }
   };
 
-  const startEditTask = (draftId, task) => {
+  const startEditTask = (draftId, task, draftMinistryId) => {
     setEditingTask({ draftId, taskId: task._id });
     setEditDescription(task.description);
     setEditDueDate(task.due_date ? task.due_date.slice(0, 10) : "");
     setEditAssignee(task.matched_user_id || "");
+    setEditMinistry(task.target_ministry_id || draftMinistryId);
+  };
+
+  // Changing which ministry a task targets invalidates whatever assignee
+  // was picked for the old one — same reasoning as the backend's own
+  // reset — so the dropdown clears immediately rather than showing a
+  // stale name.
+  const handleEditMinistryChange = (newMinistryId) => {
+    setEditMinistry(newMinistryId);
+    setEditAssignee("");
   };
 
   const handleSaveTask = async () => {
@@ -135,6 +183,7 @@ const MeetingRecap = () => {
       const res = await client.put(`/api/meetings/transcripts/${draftId}/tasks/${taskId}`, {
         description: editDescription,
         due_date: editDueDate || null,
+        target_ministry_id: family.length > 1 ? editMinistry : undefined,
         matched_user_id: editAssignee || null,
       });
       setDrafts((prev) => prev.map((d) => (d._id === draftId ? res.data : d)));
@@ -296,6 +345,22 @@ const MeetingRecap = () => {
                     })
                   : new Date(draft.created_at).toLocaleDateString()}
               </div>
+
+              {family.length > 1 && (
+                <div style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "12px" }}>
+                  Where these land:{" "}
+                  {Object.entries(
+                    draft.tasks.reduce((counts, t) => {
+                      const mId = t.target_ministry_id || draft.ministry_id;
+                      counts[mId] = (counts[mId] || 0) + 1;
+                      return counts;
+                    }, {}),
+                  )
+                    .map(([mId, count]) => `${nameForMinistry(mId)} (${count})`)
+                    .join(" · ")}
+                </div>
+              )}
+
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {draft.tasks.map((task) =>
                   editingTask?.draftId === draft._id && editingTask?.taskId === task._id ? (
@@ -315,6 +380,19 @@ const MeetingRecap = () => {
                         value={editDescription}
                         onChange={(e) => setEditDescription(e.target.value)}
                       />
+                      {family.length > 1 && (
+                        <select
+                          style={inputStyle}
+                          value={editMinistry}
+                          onChange={(e) => handleEditMinistryChange(e.target.value)}
+                        >
+                          {family.map((m) => (
+                            <option key={m.ministry_id} value={m.ministry_id}>
+                              {m.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                       <div style={{ display: "flex", gap: "8px" }}>
                         <select
                           style={{ ...inputStyle, flex: 1 }}
@@ -322,7 +400,7 @@ const MeetingRecap = () => {
                           onChange={(e) => setEditAssignee(e.target.value)}
                         >
                           <option value="">No assignee</option>
-                          {team.map((m) => (
+                          {(rostersByMinistry[editMinistry] || team).map((m) => (
                             <option key={m._id} value={m._id}>
                               {m.name}
                             </option>
@@ -373,7 +451,7 @@ const MeetingRecap = () => {
                         alignItems: "center",
                         gap: "10px",
                         padding: "10px",
-                        border: "0.5px solid var(--gray-300)",
+                        border: task.ministry_uncertain ? "1px solid var(--gold)" : "0.5px solid var(--gray-300)",
                         borderRadius: "var(--border-radius)",
                       }}
                     >
@@ -388,11 +466,13 @@ const MeetingRecap = () => {
                           {task.due_date &&
                             ` · Due ${new Date(task.due_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
                           {` · ${STATUS_LABEL[task.status]}`}
+                          {family.length > 1 &&
+                            ` · ${nameForMinistry(task.target_ministry_id || draft.ministry_id)}${task.ministry_uncertain ? " ⚠ unsure — check this one" : ""}`}
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
                         <button
-                          onClick={() => startEditTask(draft._id, task)}
+                          onClick={() => startEditTask(draft._id, task, draft.ministry_id)}
                           style={{
                             padding: "5px 10px",
                             background: "transparent",
