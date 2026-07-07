@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import Tasks from "./Tasks";
 
 jest.mock("../api/client", () => ({
@@ -343,7 +343,7 @@ describe("Everyone's tasks tab", () => {
     fireEvent.click(await screen.findByText("Everyone's tasks"));
 
     expect(await screen.findByText("Rent the van")).toBeInTheDocument();
-    expect(screen.getByText(/Tina Team/)).toBeInTheDocument();
+    expect(within(screen.getByTestId("board-column-u2")).getAllByText(/Tina Team/).length).toBeGreaterThan(0);
   });
 
   test("dragging a card into another person's column reassigns it", async () => {
@@ -373,7 +373,7 @@ describe("Everyone's tasks tab", () => {
     const card = await screen.findByText("Rent the van");
 
     fireEvent.dragStart(card);
-    fireEvent.drop(screen.getByText(/Tina Team/));
+    fireEvent.drop(screen.getByTestId("board-column-u2"));
 
     await waitFor(() =>
       expect(client.put).toHaveBeenCalledWith(
@@ -413,7 +413,7 @@ describe("Everyone's tasks tab", () => {
     const card = await screen.findByText("Rent the van");
 
     fireEvent.dragStart(card);
-    fireEvent.drop(screen.getByText(/Done/));
+    fireEvent.drop(screen.getByTestId("board-column-done"));
 
     await waitFor(() =>
       expect(client.put).toHaveBeenCalledWith(
@@ -448,5 +448,110 @@ describe("Everyone's tasks tab", () => {
       const calls = client.get.mock.calls.filter(([url]) => url === "/api/tasks/team-overview");
       expect(calls[calls.length - 1][1].params.status).toBe("all");
     });
+  });
+
+  test("a card's reassign dropdown works without dragging (keyboard/click alternative)", async () => {
+    mockUseAuth.mockReturnValue({
+      ministryId: "ktm-test",
+      user: {
+        ministries: [{ ministry_id: "ktm-test", role: "admin", name: "KTM Test", color: "#03293F" }],
+      },
+    });
+    client.get.mockImplementation((url) => {
+      if (url === "/api/tasks") return Promise.resolve({ data: [] });
+      if (url === "/api/events") return Promise.resolve({ data: [] });
+      if (url === "/api/tasks/team-overview") {
+        return Promise.resolve({
+          data: {
+            u1: { name: "Alex Admin", tasks: [{ _id: "t1", title: "Rent the van", status: "open", assigned_to: "u1" }] },
+            u2: { name: "Tina Team", tasks: [] },
+          },
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+    client.put.mockResolvedValue({ data: {} });
+
+    render(<Tasks />);
+    fireEvent.click(await screen.findByText("Everyone's tasks"));
+    await screen.findByText("Rent the van");
+
+    fireEvent.change(screen.getByLabelText('Reassign "Rent the van"'), { target: { value: "u2" } });
+
+    await waitFor(() =>
+      expect(client.put).toHaveBeenCalledWith("/api/tasks/t1", { assigned_to: "u2" }, expect.anything()),
+    );
+  });
+
+  test("a card's 'Mark done' button works without dragging", async () => {
+    mockUseAuth.mockReturnValue({
+      ministryId: "ktm-test",
+      user: {
+        ministries: [{ ministry_id: "ktm-test", role: "admin", name: "KTM Test", color: "#03293F" }],
+      },
+    });
+    client.get.mockImplementation((url) => {
+      if (url === "/api/tasks") return Promise.resolve({ data: [] });
+      if (url === "/api/events") return Promise.resolve({ data: [] });
+      if (url === "/api/tasks/team-overview") {
+        return Promise.resolve({
+          data: {
+            u1: { name: "Alex Admin", tasks: [{ _id: "t1", title: "Rent the van", status: "open", assigned_to: "u1" }] },
+          },
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+    client.put.mockResolvedValue({ data: {} });
+
+    render(<Tasks />);
+    fireEvent.click(await screen.findByText("Everyone's tasks"));
+    await screen.findByText("Rent the van");
+
+    fireEvent.click(screen.getByLabelText('Mark "Rent the van" done'));
+
+    await waitFor(() =>
+      expect(client.put).toHaveBeenCalledWith(
+        "/api/tasks/t1/complete",
+        null,
+        expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
+      ),
+    );
+  });
+
+  test("Done column's 'Reopen' button works without dragging", async () => {
+    mockUseAuth.mockReturnValue({
+      ministryId: "ktm-test",
+      user: {
+        ministries: [{ ministry_id: "ktm-test", role: "admin", name: "KTM Test", color: "#03293F" }],
+      },
+    });
+    client.get.mockImplementation((url) => {
+      if (url === "/api/tasks") return Promise.resolve({ data: [] });
+      if (url === "/api/events") return Promise.resolve({ data: [] });
+      if (url === "/api/tasks/team-overview") {
+        return Promise.resolve({
+          data: {
+            u1: { name: "Alex Admin", tasks: [{ _id: "t1", title: "Rent the van", status: "done", assigned_to: "u1" }] },
+          },
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+    client.put.mockResolvedValue({ data: {} });
+
+    render(<Tasks />);
+    fireEvent.click(await screen.findByText("Everyone's tasks"));
+    await screen.findByText("Rent the van");
+
+    fireEvent.click(screen.getByLabelText('Reopen "Rent the van"'));
+
+    await waitFor(() =>
+      expect(client.put).toHaveBeenCalledWith(
+        "/api/tasks/t1/reopen",
+        null,
+        expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
+      ),
+    );
   });
 });

@@ -983,13 +983,20 @@ const Tasks = () => {
             </div>
           )}
 
-          {Object.keys(teamOverview).length > 0 && (
+          {Object.keys(teamOverview).length > 0 && (() => {
+            // Drag-and-drop alone fails WCAG 2.2 SC 2.5.7 (Dragging
+            // Movements) — every card also needs a way to reassign/
+            // complete it without dragging. These real <select>/<button>
+            // elements are that alternative, not just a decoration.
+            const personOptions = Object.entries(teamOverview).map(([id, { name }]) => ({ id, name }));
+            return (
             <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "8px" }}>
               {Object.entries(teamOverview).map(([userId, { name, tasks }]) => {
                 const activeTasks = tasks.filter((t) => t.status !== "done");
                 return (
                   <div
                     key={userId}
+                    data-testid={`board-column-${userId}`}
                     onDragOver={(e) => {
                       e.preventDefault();
                       setDragOverColumn(userId);
@@ -1057,6 +1064,44 @@ const Tasks = () => {
                                 {due.label}
                               </div>
                             )}
+                            <div style={{ display: "flex", gap: "6px", marginTop: "8px", alignItems: "center" }}>
+                              <select
+                                aria-label={`Reassign "${t.title}"`}
+                                value={userId}
+                                onChange={(e) => handleBoardDrop(t, e.target.value)}
+                                style={{
+                                  flex: 1,
+                                  fontSize: "10px",
+                                  padding: "3px 4px",
+                                  border: "0.5px solid var(--gray-300)",
+                                  borderRadius: "6px",
+                                  color: "var(--gray-600)",
+                                  background: "var(--white)",
+                                }}
+                              >
+                                {personOptions.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                aria-label={`Mark "${t.title}" done`}
+                                onClick={() => handleBoardDrop(t, "done")}
+                                style={{
+                                  fontSize: "10px",
+                                  padding: "3px 8px",
+                                  border: "0.5px solid #b4d8b4",
+                                  borderRadius: "6px",
+                                  background: "transparent",
+                                  color: "#3a7a4a",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                ✓ Done
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
@@ -1076,6 +1121,7 @@ const Tasks = () => {
                 );
                 return (
                   <div
+                    data-testid="board-column-done"
                     onDragOver={(e) => {
                       e.preventDefault();
                       setDragOverColumn("done");
@@ -1122,14 +1168,51 @@ const Tasks = () => {
                             padding: "10px",
                             boxShadow: "var(--shadow)",
                             cursor: "grab",
-                            opacity: 0.7,
                           }}
                         >
-                          <div style={{ fontSize: "12px", color: "var(--charcoal)", textDecoration: "line-through" }}>
+                          <div style={{ fontSize: "12px", color: "var(--gray-600)", textDecoration: "line-through" }}>
                             {t.title}
                           </div>
                           <div style={{ fontSize: "10px", color: "var(--gray-500)", marginTop: "4px" }}>
                             {t.assigneeName}
+                          </div>
+                          <div style={{ display: "flex", gap: "6px", marginTop: "8px", alignItems: "center" }}>
+                            <select
+                              aria-label={`Reassign "${t.title}"`}
+                              value={t.assigned_to}
+                              onChange={(e) => handleBoardDrop(t, e.target.value)}
+                              style={{
+                                flex: 1,
+                                fontSize: "10px",
+                                padding: "3px 4px",
+                                border: "0.5px solid var(--gray-300)",
+                                borderRadius: "6px",
+                                color: "var(--gray-600)",
+                                background: "var(--white)",
+                              }}
+                            >
+                              {personOptions.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              aria-label={`Reopen "${t.title}"`}
+                              onClick={() => handleBoardDrop(t, t.assigned_to)}
+                              style={{
+                                fontSize: "10px",
+                                padding: "3px 8px",
+                                border: "0.5px solid var(--gray-300)",
+                                borderRadius: "6px",
+                                background: "transparent",
+                                color: "var(--gray-600)",
+                                cursor: "pointer",
+                              }}
+                            >
+                              ↺ Reopen
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -1143,7 +1226,8 @@ const Tasks = () => {
                 );
               })()}
             </div>
-          )}
+            );
+          })()}
         </div>
       )}
     </div>
