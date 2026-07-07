@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
 import PageHeader from "../components/PageHeader";
+import { clickableDivProps } from "../utils/a11y";
 
 const ROLES = ["host", "speaker", "leader", "member", "staff"];
 
@@ -271,7 +272,7 @@ const People = () => {
                       return (
                         <div
                           key={p._id}
-                          onClick={() => selectPerson(p)}
+                          {...clickableDivProps(() => selectPerson(p))}
                           style={{
                             borderTop: `0.5px solid ${isSelected ? "var(--navy)" : "var(--gray-300)"}`,
                             borderRight: `0.5px solid ${isSelected ? "var(--navy)" : "var(--gray-300)"}`,

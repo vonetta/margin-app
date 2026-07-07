@@ -363,8 +363,9 @@ const ProfileEditor = () => {
         <div style={{ maxWidth: "600px" }}>
           <div style={cardStyle}>
             <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Persona name</label>
+              <label style={labelStyle} htmlFor="profile-persona-name">Persona name</label>
               <input
+                id="profile-persona-name"
                 value={personaName}
                 onChange={(e) => setPersonaName(e.target.value)}
                 disabled={!canEdit}
@@ -372,8 +373,9 @@ const ProfileEditor = () => {
               />
             </div>
             <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Sign-off</label>
+              <label style={labelStyle} htmlFor="profile-sign-off">Sign-off</label>
               <input
+                id="profile-sign-off"
                 value={signOff}
                 onChange={(e) => setSignOff(e.target.value)}
                 disabled={!canEdit}
@@ -381,8 +383,9 @@ const ProfileEditor = () => {
               />
             </div>
             <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Tone pillars (comma separated)</label>
+              <label style={labelStyle} htmlFor="profile-tone-pillars">Tone pillars (comma separated)</label>
               <input
+                id="profile-tone-pillars"
                 value={tonePillars}
                 onChange={(e) => setTonePillars(e.target.value)}
                 disabled={!canEdit}
@@ -390,8 +393,9 @@ const ProfileEditor = () => {
               />
             </div>
             <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Avoid (comma separated)</label>
+              <label style={labelStyle} htmlFor="profile-avoid-list">Avoid (comma separated)</label>
               <input
+                id="profile-avoid-list"
                 value={avoidList}
                 onChange={(e) => setAvoidList(e.target.value)}
                 disabled={!canEdit}
@@ -423,9 +427,10 @@ const ProfileEditor = () => {
         <div style={{ maxWidth: "600px" }}>
           {canEdit && (
             <div style={cardStyle}>
-              <label style={labelStyle}>Add a sample phrase</label>
+              <label style={labelStyle} htmlFor="profile-new-phrase">Add a sample phrase</label>
               <div style={{ display: "flex", gap: "8px" }}>
                 <input
+                  id="profile-new-phrase"
                   value={newPhrase}
                   onChange={(e) => setNewPhrase(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addPhrase()}
@@ -536,7 +541,7 @@ const ProfileEditor = () => {
                     <div
                       style={{
                         fontSize: "10px",
-                        color: "var(--gray-400)",
+                        color: "var(--gray-600)",
                         marginTop: "4px",
                       }}
                     >
@@ -570,8 +575,9 @@ const ProfileEditor = () => {
               else gets access unless added there directly.
             </p>
             <div style={{ marginBottom: "12px" }}>
-              <label style={labelStyle}>Ministry ID (slug)</label>
+              <label style={labelStyle} htmlFor="profile-sub-ministry-id">Ministry ID (slug)</label>
               <input
+                id="profile-sub-ministry-id"
                 value={newSubId}
                 onChange={(e) => setNewSubId(e.target.value)}
                 placeholder="salt-light"
@@ -579,8 +585,9 @@ const ProfileEditor = () => {
               />
             </div>
             <div style={{ marginBottom: "12px" }}>
-              <label style={labelStyle}>Name</label>
+              <label style={labelStyle} htmlFor="profile-sub-ministry-name">Name</label>
               <input
+                id="profile-sub-ministry-name"
                 value={newSubName}
                 onChange={(e) => setNewSubName(e.target.value)}
                 placeholder="Salt & Light"
@@ -588,8 +595,9 @@ const ProfileEditor = () => {
               />
             </div>
             <div style={{ marginBottom: "16px" }}>
-              <label style={labelStyle}>Tagline (optional)</label>
+              <label style={labelStyle} htmlFor="profile-sub-ministry-tagline">Tagline (optional)</label>
               <input
+                id="profile-sub-ministry-tagline"
                 value={newSubTagline}
                 onChange={(e) => setNewSubTagline(e.target.value)}
                 style={inputStyle}

@@ -249,7 +249,7 @@ const Team = () => {
                       {member.other_ministries.map((m, i) => (
                         <span key={m.ministry_id}>
                           {i > 0 && ", "}
-                          {m.name} <span style={{ color: "var(--gray-400)" }}>({m.role})</span>
+                          {m.name} <span style={{ color: "var(--gray-600)" }}>({m.role})</span>
                         </span>
                       ))}
                     </div>

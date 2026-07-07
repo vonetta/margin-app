@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import PageHeader from "../components/PageHeader";
+import { clickableDivProps } from "../utils/a11y";
 
 const WEEKDAYS = [
   { value: "SU", label: "Su" },
@@ -901,14 +902,13 @@ const Calendar = () => {
                 return (
                   <div
                     key={i}
-                    onClick={() => setSelectedDay(day)}
+                    {...clickableDivProps(() => setSelectedDay(day))}
                     style={{
                       minHeight: "70px",
                       padding: "4px",
                       border: `0.5px solid ${isSelected ? "var(--navy)" : "var(--gray-200)"}`,
                       background: inMonth ? "var(--white)" : "var(--gray-100)",
                       cursor: "pointer",
-                      opacity: inMonth ? 1 : 0.5,
                     }}
                   >
                     <div style={{ fontSize: "10px", color: "var(--gray-500)", marginBottom: "2px" }}>
@@ -937,13 +937,13 @@ const Calendar = () => {
                       </div>
                     ))}
                     {dayItems.length > 2 && (
-                      <div style={{ fontSize: "9px", color: "var(--gray-400)" }}>+{dayItems.length - 2} more</div>
+                      <div style={{ fontSize: "9px", color: "var(--gray-600)" }}>+{dayItems.length - 2} more</div>
                     )}
                   </div>
                 );
               })}
             </div>
-            {loading && <div style={{ fontSize: "11px", color: "var(--gray-400)", marginTop: "8px" }}>Loading...</div>}
+            {loading && <div style={{ fontSize: "11px", color: "var(--gray-600)", marginTop: "8px" }}>Loading...</div>}
           </div>
 
           {selectedDay && (
@@ -960,7 +960,7 @@ const Calendar = () => {
                 {selectedDay.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
               </div>
               {selectedDayEvents.length === 0 && selectedDayTasks.length === 0 && (
-                <div style={{ fontSize: "12px", color: "var(--gray-400)" }}>Nothing on this day</div>
+                <div style={{ fontSize: "12px", color: "var(--gray-600)" }}>Nothing on this day</div>
               )}
               {selectedDayEvents.map((occ) => (
                 <div

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
 import PageHeader from "../components/PageHeader";
+import { clickableDivProps } from "../utils/a11y";
 
 const EMAIL_TYPES = [
   { value: "invitation", label: "Invitation", desc: "Invite a prospective speaker/contributor" },
@@ -494,7 +495,7 @@ const Communications = () => {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "var(--gray-400)",
+                  color: "var(--gray-600)",
                   fontSize: "12px",
                   minHeight: "160px",
                   textAlign: "center",
@@ -624,11 +625,11 @@ const Communications = () => {
                 return (
                   <div
                     key={draft._id}
-                    onClick={() => {
+                    {...clickableDivProps(() => {
                       setSelectedDraft(draft);
                       setConfirmDeleteDraft(false);
                       setEditingDraft(false);
-                    }}
+                    })}
                     style={{
                       border: `0.5px solid ${isSelected ? "var(--navy)" : "var(--gray-300)"}`,
                       borderRadius: "var(--border-radius-lg)",
@@ -647,7 +648,7 @@ const Communications = () => {
                       <div style={{ fontFamily: "Cinzel, serif", fontSize: "12px", color: "var(--navy)" }}>
                         {typeLabel(draft.type)}
                       </div>
-                      <div style={{ fontSize: "10px", color: "var(--gray-400)" }}>
+                      <div style={{ fontSize: "10px", color: "var(--gray-600)" }}>
                         {new Date(draft.created_at).toLocaleDateString()}
                       </div>
                     </div>

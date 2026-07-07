@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import { clickableDivProps } from "../utils/a11y";
 
 const timeAgo = (dateStr) => {
   const diffMs = Date.now() - new Date(dateStr).getTime();
@@ -80,7 +81,7 @@ const NotificationBell = () => {
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
       <div
-        onClick={() => setOpen((o) => !o)}
+        {...clickableDivProps(() => setOpen((o) => !o))}
         style={{
           display: "flex",
           alignItems: "center",
@@ -163,14 +164,14 @@ const NotificationBell = () => {
             )}
           </div>
           {notifications.length === 0 && (
-            <div style={{ padding: "20px 12px", fontSize: "12px", color: "var(--gray-400)", textAlign: "center" }}>
+            <div style={{ padding: "20px 12px", fontSize: "12px", color: "var(--gray-600)", textAlign: "center" }}>
               Nothing yet
             </div>
           )}
           {notifications.map((n) => (
             <div
               key={n._id}
-              onClick={() => handleClickNotification(n)}
+              {...clickableDivProps(() => handleClickNotification(n))}
               style={{
                 padding: "10px 12px",
                 borderBottom: "0.5px solid var(--gray-100)",
@@ -189,7 +190,7 @@ const NotificationBell = () => {
                 )}
               </div>
               {n.body && <div style={{ fontSize: "11px", color: "var(--gray-600)", marginTop: "2px" }}>{n.body}</div>}
-              <div style={{ fontSize: "10px", color: "var(--gray-400)", marginTop: "4px" }}>{timeAgo(n.created_at)}</div>
+              <div style={{ fontSize: "10px", color: "var(--gray-600)", marginTop: "4px" }}>{timeAgo(n.created_at)}</div>
             </div>
           ))}
         </div>

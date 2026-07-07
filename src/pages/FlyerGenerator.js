@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import client from "../api/client";
 import PageHeader from "../components/PageHeader";
+import { clickableDivProps } from "../utils/a11y";
 
 const labelStyle = {
   display: "block",
@@ -439,7 +440,7 @@ const FlyerGenerator = () => {
                       return (
                         <div
                           key={p._id}
-                          onClick={() => toggleSpeaker(p._id)}
+                          {...clickableDivProps(() => toggleSpeaker(p._id))}
                           style={{
                             display: "flex",
                             alignItems: "center",
@@ -490,7 +491,7 @@ const FlyerGenerator = () => {
               ].map((e) => (
                 <div
                   key={e.id}
-                  onClick={() => setEngine(e.id)}
+                  {...clickableDivProps(() => setEngine(e.id))}
                   style={{
                     flex: 1,
                     border: `0.5px solid ${engine === e.id ? "var(--navy)" : "var(--gray-300)"}`,
@@ -522,7 +523,7 @@ const FlyerGenerator = () => {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 <div
-                  onClick={() => setSelectedLayout("auto")}
+                  {...clickableDivProps(() => setSelectedLayout("auto"))}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -554,7 +555,7 @@ const FlyerGenerator = () => {
                   return (
                     <div
                       key={l.id}
-                      onClick={() => !disabled && setSelectedLayout(l.id)}
+                      {...clickableDivProps(() => setSelectedLayout(l.id), { disabled })}
                       style={{
                         display: "flex",
                         alignItems: "center",

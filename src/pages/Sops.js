@@ -260,6 +260,7 @@ const Sops = () => {
             </p>
             <input
               type="file"
+              aria-label="SOP source images"
               accept="image/jpeg,image/png,image/webp"
               multiple
               onChange={(e) => setSopImages(Array.from(e.target.files || []))}

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import { clickableDivProps } from "../utils/a11y";
 
 const USAGE_LABELS = {
   team_members: "Team members",
@@ -175,7 +176,7 @@ const Dashboard = () => {
 
       {ministry && !ministry.onboarding_complete && (
         <div
-          onClick={() => navigate("/onboarding")}
+          {...clickableDivProps(() => navigate("/onboarding"))}
           style={{
             background: "#fff8ec",
             border: "0.5px solid #f0d080",
@@ -335,7 +336,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div
-              onClick={() => navigate("/tasks")}
+              {...clickableDivProps(() => navigate("/tasks"))}
               style={{ fontSize: "11px", color: "var(--accent-dark)", cursor: "pointer", fontWeight: "500" }}
             >
               View all →
@@ -368,8 +369,9 @@ const Dashboard = () => {
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
                     <span
-                      onClick={() => handleCompleteTask(task)}
+                      {...clickableDivProps(() => handleCompleteTask(task))}
                       title="Mark complete"
+                      aria-label={`Mark "${task.title}" complete`}
                       style={{
                         width: "15px",
                         height: "15px",
@@ -464,7 +466,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div
-              onClick={() => navigate("/calendar")}
+              {...clickableDivProps(() => navigate("/calendar"))}
               style={{ fontSize: "11px", color: "var(--gold-dark)", cursor: "pointer", fontWeight: "500" }}
             >
               View calendar →
@@ -574,7 +576,7 @@ const Dashboard = () => {
         ].map((card) => (
           <div
             key={card.path}
-            onClick={() => !card.comingSoon && navigate(card.path)}
+            {...clickableDivProps(() => navigate(card.path), { disabled: card.comingSoon })}
             style={{
               background: "var(--white)",
               border: "0.5px solid var(--gray-300)",

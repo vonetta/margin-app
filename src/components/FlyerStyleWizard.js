@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import client from "../api/client";
 import FlyerPreviewCanvas from "./FlyerPreviewCanvas";
 import { COLOR_VARIANT_LABELS, deriveColorVariants } from "../utils/colorVariants";
+import { clickableDivProps } from "../utils/a11y";
 
 // Mirrors src/services/layouts/styleSchema.js on the backend — kept in sync
 // manually since the wizard needs human-readable labels the schema doesn't
@@ -372,13 +373,13 @@ const FlyerStyleWizard = ({
                         return (
                           <div
                             key={p._id}
-                            onClick={() =>
+                            {...clickableDivProps(() =>
                               onSpeakersChange?.(
                                 checked
                                   ? speakerIds.filter((id) => id !== p._id)
                                   : [...speakerIds, p._id],
-                              )
-                            }
+                              ),
+                            )}
                             style={{
                               display: "flex",
                               alignItems: "center",

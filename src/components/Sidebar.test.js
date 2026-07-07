@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import Sidebar from "./Sidebar";
 
 jest.mock("./NotificationBell", () => () => <div>NotificationBell</div>);
@@ -81,4 +81,19 @@ test("marks Resources as coming soon and doesn't navigate when clicked", () => {
   expect(screen.getByText("SOON")).toBeInTheDocument();
   screen.getByText("Resources").click();
   expect(mockNavigate).not.toHaveBeenCalledWith("/resources");
+});
+
+test("nav items are keyboard-operable (role=button, Enter navigates)", () => {
+  render(<Sidebar />);
+
+  const calendarItem = screen.getByRole("button", { name: /Calendar/ });
+  expect(calendarItem).toHaveAttribute("tabIndex", "0");
+
+  fireEvent.keyDown(calendarItem, { key: "Enter" });
+  expect(mockNavigate).toHaveBeenCalledWith("/calendar");
+});
+
+test("a coming-soon item has no button role at all", () => {
+  render(<Sidebar />);
+  expect(screen.queryByRole("button", { name: /Resources/ })).not.toBeInTheDocument();
 });

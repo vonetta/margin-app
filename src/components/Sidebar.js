@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import NotificationBell from "./NotificationBell";
+import { clickableDivProps } from "../utils/a11y";
 
 // Grouped by mental model rather than one flat list: land on Dashboard,
 // go CREATE something ministry-facing, OPERATE the day-to-day, or SET UP
@@ -151,7 +152,7 @@ const Sidebar = () => {
               return (
                 <div
                   key={item.path}
-                  onClick={() => !disabled && navigate(item.path)}
+                  {...clickableDivProps(() => navigate(item.path), { disabled })}
                   title={disabled ? "Coming soon" : undefined}
                   style={{
                     display: "flex",
@@ -233,7 +234,7 @@ const Sidebar = () => {
           {user?.name}
         </div>
         <div
-          onClick={logout}
+          {...clickableDivProps(logout)}
           style={{
             display: "flex",
             alignItems: "center",

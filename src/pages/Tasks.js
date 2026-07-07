@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import PageHeader from "../components/PageHeader";
+import { clickableDivProps } from "../utils/a11y";
 
 const FALLBACK_COLOR = "#4a5a6a";
 
@@ -513,7 +514,7 @@ const Tasks = () => {
         }}
       >
         <div
-          onClick={() => startEdit(task)}
+          {...clickableDivProps(() => startEdit(task))}
           style={{ cursor: "pointer", flex: 1 }}
           title="Click to view and edit details"
         >

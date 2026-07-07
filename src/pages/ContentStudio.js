@@ -4,6 +4,7 @@ import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import FlyerStyleWizard from "../components/FlyerStyleWizard";
 import PageHeader from "../components/PageHeader";
+import { clickableDivProps } from "../utils/a11y";
 
 const PLATFORMS = ["Instagram", "Facebook", "Email", "Quote card"];
 
@@ -847,10 +848,10 @@ const ContentStudio = () => {
                 return (
                   <div
                     key={draft._id}
-                    onClick={() => {
+                    {...clickableDivProps(() => {
                       setSelectedDraft(draft);
                       setFeedback("");
-                    }}
+                    })}
                     style={{
                       border: `0.5px solid ${isSelected ? "var(--navy)" : "var(--gray-300)"}`,
                       borderRadius: "var(--border-radius-lg)",
