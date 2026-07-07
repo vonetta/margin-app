@@ -371,12 +371,14 @@ const Dashboard = () => {
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
+                        title={task.title}
                         style={{
                           fontSize: "12px",
                           color: "var(--charcoal)",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
+                          maxWidth: "560px",
                         }}
                       >
                         {task.title}
