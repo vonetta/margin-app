@@ -33,7 +33,7 @@ test("groups nav items under Create/Operate/Setup headers for an admin", () => {
   expect(screen.getByText("Setup")).toBeInTheDocument();
 
   expect(screen.getByText("Dashboard")).toBeInTheDocument();
-  expect(screen.getByText("Content Studio")).toBeInTheDocument();
+  expect(screen.getByText("Captions")).toBeInTheDocument();
   expect(screen.getByText("Flyers")).toBeInTheDocument();
   expect(screen.getByText("Communications")).toBeInTheDocument();
   expect(screen.getByText("Social Queue")).toBeInTheDocument();

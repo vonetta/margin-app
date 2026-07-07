@@ -15,8 +15,8 @@ const navGroups = [
   {
     label: "Create",
     items: [
-      { label: "Content Studio", path: "/content", icon: "✦" },
-      { label: "Flyers", path: "/flyers", icon: "▣" },
+      { label: "Captions", path: "/content", icon: "✦", hint: "Start from words" },
+      { label: "Flyers", path: "/flyers", icon: "▣", hint: "Start from the design" },
       { label: "Communications", path: "/communications", icon: "✉" },
       { label: "Social Queue", path: "/social-queue", icon: "⌘", adminOnly: true },
     ],
@@ -184,7 +184,14 @@ const Sidebar = () => {
                     <span style={{ fontSize: "14px", opacity: 0.85 }}>
                       {item.icon}
                     </span>
-                    {item.label}
+                    <span style={{ display: "flex", flexDirection: "column" }}>
+                      <span>{item.label}</span>
+                      {item.hint && (
+                        <span style={{ fontSize: "9px", color: "rgba(255,255,255,0.35)", fontWeight: "400" }}>
+                          {item.hint}
+                        </span>
+                      )}
+                    </span>
                   </span>
                   {disabled && (
                     <span style={{ fontSize: "8px", letterSpacing: "0.04em" }}>

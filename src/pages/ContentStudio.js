@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import FlyerStyleWizard from "../components/FlyerStyleWizard";
@@ -13,6 +14,7 @@ const statusColors = {
 };
 
 const ContentStudio = () => {
+  const navigate = useNavigate();
   const { switchMinistry, ministry } = useAuth();
   const [tab, setTab] = useState("generate");
   const [platform, setPlatform] = useState("Instagram");
@@ -304,9 +306,19 @@ const ContentStudio = () => {
       <PageHeader
         icon="✦"
         color="var(--accent)"
-        title="Content Studio"
-        subtitle="Generate, review, and publish ministry content"
+        title="Captions"
+        subtitle="Start from a caption — we'll draft a matching flyer for you"
       />
+
+      <div style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "16px" }}>
+        Already have the flyer, just need the design?{" "}
+        <span
+          onClick={() => navigate("/flyers")}
+          style={{ color: "var(--accent-dark)", fontWeight: "500", cursor: "pointer" }}
+        >
+          Start from Flyers instead →
+        </span>
+      </div>
 
       <div style={{ display: "flex", gap: "4px", marginBottom: "24px" }}>
         {[

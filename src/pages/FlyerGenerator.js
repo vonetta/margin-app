@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import client from "../api/client";
 import PageHeader from "../components/PageHeader";
 
@@ -54,6 +55,7 @@ const suggestLayout = (host, speakers, hasVenueImage) => {
 };
 
 const FlyerGenerator = () => {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     title: "",
     subtitle: "",
@@ -264,8 +266,18 @@ const FlyerGenerator = () => {
         icon="▣"
         color="var(--navy)"
         title="Flyer Generator"
-        subtitle="Build an event flyer from your roster and branding"
+        subtitle="Start from the design — we'll draft a matching caption for you"
       />
+
+      <div style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "16px" }}>
+        Don't have a flyer yet, just want to write a post?{" "}
+        <span
+          onClick={() => navigate("/content")}
+          style={{ color: "var(--navy)", fontWeight: "500", cursor: "pointer" }}
+        >
+          Start from Captions instead →
+        </span>
+      </div>
 
       <div
         style={{

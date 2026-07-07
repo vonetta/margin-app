@@ -523,7 +523,7 @@ const Dashboard = () => {
       >
         {[
           {
-            label: "Content Studio",
+            label: "Captions",
             desc: "Generate and review content",
             path: "/content",
             icon: "✦",
