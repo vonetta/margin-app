@@ -713,3 +713,69 @@ describe("Everyone's tasks tab", () => {
     );
   });
 });
+
+describe("similar-task warning on the create form", () => {
+  test("warns when typing a title similar to an existing task", async () => {
+    client.get.mockImplementation((url, opts) => {
+      if (url === "/api/tasks") return Promise.resolve({ data: [] });
+      if (url === "/api/events") return Promise.resolve({ data: [] });
+      if (url === "/api/ministry/team") {
+        return Promise.resolve({ data: [{ _id: "u1", name: "Alex Admin", role: "admin" }] });
+      }
+      if (url === "/api/tasks/similar") {
+        expect(opts.params.title).toBe("Rent a van");
+        return Promise.resolve({
+          data: [{ _id: "t1", title: "Rent the van", assignee_name: "Alex Admin", status: "open" }],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    render(<Tasks />);
+    fireEvent.click(screen.getByText("+ New task"));
+    fireEvent.change(screen.getByPlaceholderText("Task title"), { target: { value: "Rent a van" } });
+
+    expect(await screen.findByText(/Looks similar to an existing task/)).toBeInTheDocument();
+    expect(screen.getByText("Rent the van")).toBeInTheDocument();
+  });
+
+  test("does not check for a very short title", async () => {
+    client.get.mockImplementation((url) => {
+      if (url === "/api/tasks/similar") {
+        throw new Error("should not be called for a short title");
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    render(<Tasks />);
+    fireEvent.click(screen.getByText("+ New task"));
+    fireEvent.change(screen.getByPlaceholderText("Task title"), { target: { value: "Van" } });
+
+    await new Promise((r) => setTimeout(r, 500));
+    expect(screen.queryByText(/Looks similar to an existing task/)).not.toBeInTheDocument();
+  });
+
+  test("clears the warning once the form is reset", async () => {
+    client.get.mockImplementation((url) => {
+      if (url === "/api/tasks") return Promise.resolve({ data: [] });
+      if (url === "/api/events") return Promise.resolve({ data: [] });
+      if (url === "/api/ministry/team") {
+        return Promise.resolve({ data: [{ _id: "u1", name: "Alex Admin", role: "admin" }] });
+      }
+      if (url === "/api/tasks/similar") {
+        return Promise.resolve({
+          data: [{ _id: "t1", title: "Rent the van", assignee_name: "Alex Admin", status: "open" }],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    render(<Tasks />);
+    fireEvent.click(screen.getByText("+ New task"));
+    fireEvent.change(screen.getByPlaceholderText("Task title"), { target: { value: "Rent a van" } });
+    await screen.findByText(/Looks similar to an existing task/);
+
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(screen.queryByText(/Looks similar to an existing task/)).not.toBeInTheDocument();
+  });
+});

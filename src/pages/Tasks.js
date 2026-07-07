@@ -87,6 +87,7 @@ const Tasks = () => {
   const [dragOverColumn, setDragOverColumn] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [similarTasks, setSimilarTasks] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [editingTaskId, setEditingTaskId] = useState(null);
@@ -196,8 +197,27 @@ const Tasks = () => {
       .catch(() => setTeam([]));
   }, []);
 
+  // Debounced so this doesn't fire a request per keystroke — a nudge to
+  // avoid an accidental duplicate, not a blocking check, so it stays
+  // quiet (no request at all) until the title looks like a real attempt
+  // at one.
+  useEffect(() => {
+    if (!showForm || form.title.trim().length < 4) {
+      setSimilarTasks([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      client
+        .get("/api/tasks/similar", { params: { title: form.title.trim() } })
+        .then((res) => setSimilarTasks(res.data || []))
+        .catch(() => setSimilarTasks([]));
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [showForm, form.title]);
+
   const resetForm = () => {
     setForm(emptyForm);
+    setSimilarTasks([]);
     setError("");
     setShowForm(false);
   };
@@ -428,6 +448,7 @@ const Tasks = () => {
       />
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
         <select
+          aria-label="Assign to"
           value={editForm.assignedTo}
           onChange={(e) => setEditForm({ ...editForm, assignedTo: e.target.value })}
           style={{
@@ -448,6 +469,7 @@ const Tasks = () => {
         </select>
         <input
           type="date"
+          aria-label="Due date"
           value={editForm.dueDate}
           onChange={(e) => setEditForm({ ...editForm, dueDate: e.target.value })}
           style={{
@@ -460,6 +482,7 @@ const Tasks = () => {
       </div>
       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
         <select
+          aria-label="Repeat frequency"
           value={editForm.repeatFreq}
           onChange={(e) => setEditForm({ ...editForm, repeatFreq: e.target.value })}
           style={{
@@ -480,6 +503,7 @@ const Tasks = () => {
             <span style={{ fontSize: "11px", color: "var(--gray-500)" }}>every</span>
             <input
               type="number"
+              aria-label="Repeat interval"
               min={1}
               value={editForm.repeatInterval}
               onChange={(e) => setEditForm({ ...editForm, repeatInterval: Number(e.target.value) || 1 })}
@@ -784,6 +808,27 @@ const Tasks = () => {
               fontSize: "13px",
             }}
           />
+          {similarTasks.length > 0 && (
+            <div
+              style={{
+                background: "#fff8ec",
+                border: "0.5px solid #f0d080",
+                borderRadius: "var(--border-radius)",
+                padding: "8px 12px",
+                fontSize: "11px",
+                color: "#8a6200",
+              }}
+            >
+              Looks similar to an existing task:{" "}
+              {similarTasks.map((t, i) => (
+                <span key={t._id}>
+                  {i > 0 && ", "}
+                  <strong>{t.title}</strong> ({t.assignee_name})
+                </span>
+              ))}
+              . Creating a new one below won't touch those — just checking it's not an accidental duplicate.
+            </div>
+          )}
           <textarea
             placeholder="Description (optional)"
             value={form.description}
@@ -827,6 +872,7 @@ const Tasks = () => {
             </div>
             <input
               type="date"
+              aria-label="Due date"
               value={form.dueDate}
               onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
               style={{
@@ -839,6 +885,7 @@ const Tasks = () => {
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <select
+              aria-label="Repeat frequency"
               value={form.repeatFreq}
               onChange={(e) => setForm({ ...form, repeatFreq: e.target.value })}
               style={{
@@ -859,6 +906,7 @@ const Tasks = () => {
                 <span style={{ fontSize: "11px", color: "var(--gray-500)" }}>every</span>
                 <input
                   type="number"
+                  aria-label="Repeat interval"
                   min={1}
                   value={form.repeatInterval}
                   onChange={(e) => setForm({ ...form, repeatInterval: Number(e.target.value) || 1 })}
