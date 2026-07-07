@@ -17,7 +17,7 @@ const emptyForm = {
   title: "",
   description: "",
   dueDate: "",
-  assignedTo: "",
+  assignedTo: [],
   repeatFreq: "",
   repeatInterval: 1,
 };
@@ -81,7 +81,7 @@ const Tasks = () => {
   const [showDone, setShowDone] = useState(false);
   const [team, setTeam] = useState([]);
   const [teamOverview, setTeamOverview] = useState({});
-  const [teamOverviewStatus, setTeamOverviewStatus] = useState("open");
+  const [teamOverviewStatus, setTeamOverviewStatus] = useState("active");
   const [teamOverviewLoading, setTeamOverviewLoading] = useState(false);
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState(null);
@@ -203,8 +203,8 @@ const Tasks = () => {
   };
 
   const handleCreate = async () => {
-    if (!form.title.trim() || !form.assignedTo) {
-      setError("Title and an assignee are required");
+    if (!form.title.trim() || form.assignedTo.length === 0) {
+      setError("Title and at least one assignee are required");
       return;
     }
     if (form.repeatFreq && !form.dueDate) {
@@ -317,35 +317,74 @@ const Tasks = () => {
   const visibleMine = myTasks.filter((t) => (showDone ? true : t.status === "open"));
   const openCount = myTasks.filter((t) => t.status === "open").length;
 
-  // Dropping a card onto a person column reassigns it (reopening first if
-  // it came from Done); dropping onto Done completes it. A no-op drop
-  // (same column, already in that state) skips the network call.
-  const handleBoardDrop = async (task, targetKey) => {
+  // Dropping (or picking from the keyboard-alternative select) a card
+  // onto a person's column ADDS that person as a co-assignee — it never
+  // replaces the existing one, so a task's current assignees are never
+  // silently dropped. The drag interaction and its non-drag alternative
+  // both call this same function, so they can't drift apart in meaning
+  // (a real WCAG 2.2 requirement, not just consistency for its own sake).
+  const handleBoardAdd = async (task, targetUserId) => {
     setDragOverColumn(null);
+    if (targetUserId === task.assigned_to) return;
     try {
-      if (targetKey === "done") {
-        if (task.status !== "done") {
-          await client.put(`/api/tasks/${task._id}/complete`, null, {
-            headers: { "x-ministry-id": task.ministry_id },
-          });
-        }
-      } else {
-        if (task.status === "done") {
-          await client.put(`/api/tasks/${task._id}/reopen`, null, {
-            headers: { "x-ministry-id": task.ministry_id },
-          });
-        }
-        if (task.assigned_to !== targetKey) {
-          await client.put(
-            `/api/tasks/${task._id}`,
-            { assigned_to: targetKey },
-            { headers: { "x-ministry-id": task.ministry_id } },
-          );
-        }
-      }
+      await client.post(
+        `/api/tasks/${task._id}/assignees`,
+        { user_id: targetUserId },
+        { headers: { "x-ministry-id": task.ministry_id } },
+      );
       await fetchTeamOverview();
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to update this task");
+      setError(err.response?.data?.error || "Failed to add that person to this task");
+    }
+  };
+
+  const handleBoardComplete = async (task) => {
+    setDragOverColumn(null);
+    try {
+      await client.put(`/api/tasks/${task._id}/complete`, null, {
+        headers: { "x-ministry-id": task.ministry_id },
+      });
+      await fetchTeamOverview();
+    } catch (err) {
+      setError("Failed to complete this task");
+    }
+  };
+
+  const handleBoardReopen = async (task) => {
+    try {
+      await client.put(`/api/tasks/${task._id}/reopen`, null, {
+        headers: { "x-ministry-id": task.ministry_id },
+      });
+      await fetchTeamOverview();
+    } catch (err) {
+      setError("Failed to reopen this task");
+    }
+  };
+
+  const handleBoardHold = async (task) => {
+    try {
+      await client.put(
+        `/api/tasks/${task._id}/hold`,
+        {},
+        { headers: { "x-ministry-id": task.ministry_id } },
+      );
+      await fetchTeamOverview();
+    } catch (err) {
+      setError("Failed to put this task on hold");
+    }
+  };
+
+  // Removing someone from a shared task is just deleting their own row —
+  // the other sibling documents (and the task itself, for them) are
+  // untouched.
+  const handleRemoveFromBoard = async (task) => {
+    try {
+      await client.delete(`/api/tasks/${task._id}`, {
+        headers: { "x-ministry-id": task.ministry_id },
+      });
+      await fetchTeamOverview();
+    } catch (err) {
+      setError("Failed to remove this person from the task");
     }
   };
 
@@ -759,25 +798,33 @@ const Tasks = () => {
             }}
           />
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            <select
-              value={form.assignedTo}
-              onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
-              style={{
-                padding: "8px 12px",
-                border: "0.5px solid var(--gray-300)",
-                borderRadius: "var(--border-radius)",
-                fontSize: "13px",
-                flex: 1,
-                minWidth: "180px",
-              }}
-            >
-              <option value="">Assign to...</option>
-              {team.map((member) => (
-                <option key={member._id} value={member._id}>
-                  {member.name}
-                </option>
-              ))}
-            </select>
+            <div style={{ flex: 1, minWidth: "180px" }}>
+              <select
+                multiple
+                aria-label="Assign to"
+                value={form.assignedTo}
+                onChange={(e) =>
+                  setForm({ ...form, assignedTo: Array.from(e.target.selectedOptions, (o) => o.value) })
+                }
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "0.5px solid var(--gray-300)",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "13px",
+                  minHeight: "76px",
+                }}
+              >
+                {team.map((member) => (
+                  <option key={member._id} value={member._id}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+              <div style={{ fontSize: "10px", color: "var(--gray-500)", marginTop: "2px" }}>
+                Hold Cmd/Ctrl to assign more than one person
+              </div>
+            </div>
             <input
               type="date"
               value={form.dueDate}
@@ -943,7 +990,7 @@ const Tasks = () => {
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={{ display: "flex", gap: "4px" }}>
             {[
-              { key: "open", label: "Open" },
+              { key: "active", label: "Open" },
               { key: "all", label: "Open + completed" },
             ].map((s) => (
               <button
@@ -986,10 +1033,16 @@ const Tasks = () => {
 
           {Object.keys(teamOverview).length > 0 && (() => {
             // Drag-and-drop alone fails WCAG 2.2 SC 2.5.7 (Dragging
-            // Movements) — every card also needs a way to reassign/
-            // complete it without dragging. These real <select>/<button>
-            // elements are that alternative, not just a decoration.
+            // Movements) — every card also needs a way to add/complete
+            // it without dragging. These real <select>/<button> elements
+            // are that alternative, not just a decoration.
             const personOptions = Object.entries(teamOverview).map(([id, { name }]) => ({ id, name }));
+            const nameById = Object.fromEntries(personOptions.map((p) => [p.id, p.name]));
+            const allBoardTasks = Object.values(teamOverview).flatMap(({ tasks }) => tasks);
+            // Other rows sharing this task's group_id — i.e. the rest of
+            // a shared task's assignees, each with their own status.
+            const siblingsOf = (task) =>
+              task.group_id ? allBoardTasks.filter((t) => t.group_id === task.group_id && t._id !== task._id) : [];
             return (
             <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "8px" }}>
               {Object.entries(teamOverview).map(([userId, { name, tasks }]) => {
@@ -1005,7 +1058,7 @@ const Tasks = () => {
                     onDragLeave={() => setDragOverColumn(null)}
                     onDrop={(e) => {
                       e.preventDefault();
-                      if (draggedTask) handleBoardDrop(draggedTask, userId);
+                      if (draggedTask) handleBoardAdd(draggedTask, userId);
                     }}
                     style={{
                       minWidth: "240px",
@@ -1033,15 +1086,21 @@ const Tasks = () => {
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                       {activeTasks.map((t) => {
                         const due = formatDue(t.due_date);
+                        const onHold = t.status === "on_hold";
+                        const siblings = siblingsOf(t);
+                        const addOptions = personOptions.filter(
+                          (p) => p.id !== userId && !siblings.some((s) => s.assigned_to === p.id),
+                        );
                         return (
                           <div
                             key={t._id}
                             draggable
                             onDragStart={() => setDraggedTask(t)}
                             onDragEnd={() => setDraggedTask(null)}
+                            title={onHold ? t.hold_reason || "On hold" : undefined}
                             style={{
                               background: "var(--white)",
-                              border: "0.5px solid var(--gray-300)",
+                              border: onHold ? "1px solid var(--gold)" : "0.5px solid var(--gray-300)",
                               borderRadius: "var(--border-radius)",
                               padding: "10px",
                               boxShadow: "var(--shadow)",
@@ -1049,50 +1108,96 @@ const Tasks = () => {
                             }}
                           >
                             <div style={{ fontSize: "12px", color: "var(--charcoal)" }}>{t.title}</div>
-                            {due && (
-                              <div
-                                style={{
-                                  marginTop: "6px",
-                                  display: "inline-block",
-                                  fontSize: "9px",
-                                  fontWeight: "600",
-                                  padding: "2px 6px",
-                                  borderRadius: "10px",
-                                  color: due.overdue ? "#c0504d" : "var(--gray-600)",
-                                  background: due.overdue ? "#fdf0f0" : "var(--gray-200)",
-                                }}
-                              >
-                                {due.label}
+                            <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
+                              {due && (
+                                <span
+                                  style={{
+                                    fontSize: "9px",
+                                    fontWeight: "600",
+                                    padding: "2px 6px",
+                                    borderRadius: "10px",
+                                    color: due.overdue ? "#c0504d" : "var(--gray-600)",
+                                    background: due.overdue ? "#fdf0f0" : "var(--gray-200)",
+                                  }}
+                                >
+                                  {due.label}
+                                </span>
+                              )}
+                              {onHold && (
+                                <span
+                                  style={{
+                                    fontSize: "9px",
+                                    fontWeight: "600",
+                                    padding: "2px 6px",
+                                    borderRadius: "10px",
+                                    color: "#8a6200",
+                                    background: "#fff6df",
+                                  }}
+                                >
+                                  ⏸ On hold
+                                </span>
+                              )}
+                            </div>
+                            {siblings.length > 0 && (
+                              <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "6px" }}>
+                                {siblings.map((s) => (
+                                  <span
+                                    key={s._id}
+                                    style={{
+                                      fontSize: "9px",
+                                      padding: "2px 6px",
+                                      borderRadius: "10px",
+                                      background: "var(--gray-200)",
+                                      color: "var(--gray-600)",
+                                    }}
+                                  >
+                                    {s.status === "done" ? "✓ " : s.status === "on_hold" ? "⏸ " : ""}
+                                    {nameById[s.assigned_to] || "Someone"}
+                                    <span
+                                      {...clickableDivProps(() => handleRemoveFromBoard(s))}
+                                      aria-label={`Remove ${nameById[s.assigned_to] || "them"} from "${t.title}"`}
+                                      style={{ marginLeft: "4px", cursor: "pointer" }}
+                                    >
+                                      ×
+                                    </span>
+                                  </span>
+                                ))}
                               </div>
                             )}
-                            <div style={{ display: "flex", gap: "6px", marginTop: "8px", alignItems: "center" }}>
-                              <select
-                                aria-label={`Reassign "${t.title}"`}
-                                value={userId}
-                                onChange={(e) => handleBoardDrop(t, e.target.value)}
-                                style={{
-                                  flex: 1,
-                                  fontSize: "10px",
-                                  padding: "3px 4px",
-                                  border: "0.5px solid var(--gray-300)",
-                                  borderRadius: "6px",
-                                  color: "var(--gray-600)",
-                                  background: "var(--white)",
-                                }}
-                              >
-                                {personOptions.map((p) => (
-                                  <option key={p.id} value={p.id}>
-                                    {p.name}
-                                  </option>
-                                ))}
-                              </select>
+                            <select
+                              aria-label={`Add someone else to "${t.title}"`}
+                              defaultValue=""
+                              onChange={(e) => {
+                                if (e.target.value) handleBoardAdd(t, e.target.value);
+                                e.target.value = "";
+                              }}
+                              style={{
+                                width: "100%",
+                                marginTop: "8px",
+                                fontSize: "10px",
+                                padding: "3px 4px",
+                                border: "0.5px solid var(--gray-300)",
+                                borderRadius: "6px",
+                                color: "var(--gray-600)",
+                                background: "var(--white)",
+                              }}
+                            >
+                              <option value="">+ Add someone</option>
+                              {addOptions.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name}
+                                </option>
+                              ))}
+                            </select>
+                            <div style={{ display: "flex", gap: "6px", marginTop: "6px", alignItems: "center" }}>
                               <button
                                 type="button"
                                 aria-label={`Mark "${t.title}" done`}
-                                onClick={() => handleBoardDrop(t, "done")}
+                                onClick={() => handleBoardComplete(t)}
                                 style={{
+                                  flex: 1,
                                   fontSize: "10px",
-                                  padding: "3px 8px",
+                                  padding: "3px 6px",
                                   border: "0.5px solid #b4d8b4",
                                   borderRadius: "6px",
                                   background: "transparent",
@@ -1102,6 +1207,43 @@ const Tasks = () => {
                               >
                                 ✓ Done
                               </button>
+                              {onHold ? (
+                                <button
+                                  type="button"
+                                  aria-label={`Resume "${t.title}"`}
+                                  onClick={() => handleBoardReopen(t)}
+                                  style={{
+                                    flex: 1,
+                                    fontSize: "10px",
+                                    padding: "3px 6px",
+                                    border: "0.5px solid var(--gray-300)",
+                                    borderRadius: "6px",
+                                    background: "transparent",
+                                    color: "var(--gray-600)",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  ▶ Resume
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  aria-label={`Put "${t.title}" on hold`}
+                                  onClick={() => handleBoardHold(t)}
+                                  style={{
+                                    flex: 1,
+                                    fontSize: "10px",
+                                    padding: "3px 6px",
+                                    border: "0.5px solid var(--gray-300)",
+                                    borderRadius: "6px",
+                                    background: "transparent",
+                                    color: "var(--gray-600)",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  ⏸ Hold
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
@@ -1130,7 +1272,7 @@ const Tasks = () => {
                     onDragLeave={() => setDragOverColumn(null)}
                     onDrop={(e) => {
                       e.preventDefault();
-                      if (draggedTask) handleBoardDrop(draggedTask, "done");
+                      if (draggedTask) handleBoardComplete(draggedTask);
                     }}
                     style={{
                       minWidth: "240px",
@@ -1177,31 +1319,30 @@ const Tasks = () => {
                           <div style={{ fontSize: "10px", color: "var(--gray-500)", marginTop: "4px" }}>
                             {t.assigneeName}
                           </div>
-                          <div style={{ display: "flex", gap: "6px", marginTop: "8px", alignItems: "center" }}>
-                            <select
-                              aria-label={`Reassign "${t.title}"`}
-                              value={t.assigned_to}
-                              onChange={(e) => handleBoardDrop(t, e.target.value)}
-                              style={{
-                                flex: 1,
-                                fontSize: "10px",
-                                padding: "3px 4px",
-                                border: "0.5px solid var(--gray-300)",
-                                borderRadius: "6px",
-                                color: "var(--gray-600)",
-                                background: "var(--white)",
-                              }}
-                            >
-                              {personOptions.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name}
-                                </option>
+                          {siblingsOf(t).length > 0 && (
+                            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "6px" }}>
+                              {siblingsOf(t).map((s) => (
+                                <span
+                                  key={s._id}
+                                  style={{
+                                    fontSize: "9px",
+                                    padding: "2px 6px",
+                                    borderRadius: "10px",
+                                    background: "var(--gray-200)",
+                                    color: "var(--gray-600)",
+                                  }}
+                                >
+                                  {s.status === "done" ? "✓ " : s.status === "on_hold" ? "⏸ " : ""}
+                                  {nameById[s.assigned_to] || "Someone"}
+                                </span>
                               ))}
-                            </select>
+                            </div>
+                          )}
+                          <div style={{ display: "flex", gap: "6px", marginTop: "8px", alignItems: "center" }}>
                             <button
                               type="button"
                               aria-label={`Reopen "${t.title}"`}
-                              onClick={() => handleBoardDrop(t, t.assigned_to)}
+                              onClick={() => handleBoardReopen(t)}
                               style={{
                                 fontSize: "10px",
                                 padding: "3px 8px",
