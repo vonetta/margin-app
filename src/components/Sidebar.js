@@ -3,20 +3,42 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import NotificationBell from "./NotificationBell";
 
-const navItems = [
-  { label: "Dashboard", path: "/", icon: "⊞" },
-  { label: "Content Studio", path: "/content", icon: "✦" },
-  { label: "Communications", path: "/communications", icon: "✉" },
-  { label: "Calendar", path: "/calendar", icon: "◈" },
-  { label: "Tasks", path: "/tasks", icon: "☑" },
-  { label: "Meeting Recap", path: "/meeting-recap", icon: "▧", roles: ["admin", "leader"] },
-  { label: "Flyers", path: "/flyers", icon: "▣" },
-  { label: "Social Queue", path: "/social-queue", icon: "⌘", adminOnly: true },
-  { label: "People", path: "/people", icon: "◎" },
-  { label: "Team", path: "/team", icon: "⚑", adminOnly: true },
-  { label: "SOPs", path: "/sops", icon: "▤", roles: ["admin", "leader"] },
-  { label: "Resources", path: "/resources", icon: "▦", comingSoon: true },
-  { label: "AI Profile", path: "/profile", icon: "◐" },
+// Grouped by mental model rather than one flat list: land on Dashboard,
+// go CREATE something ministry-facing, OPERATE the day-to-day, or SET UP
+// the ministry's profile/knowledge base. A group only renders if at
+// least one of its items is visible to the current role.
+const navGroups = [
+  {
+    label: null,
+    items: [{ label: "Dashboard", path: "/", icon: "⊞" }],
+  },
+  {
+    label: "Create",
+    items: [
+      { label: "Content Studio", path: "/content", icon: "✦" },
+      { label: "Flyers", path: "/flyers", icon: "▣" },
+      { label: "Communications", path: "/communications", icon: "✉" },
+      { label: "Social Queue", path: "/social-queue", icon: "⌘", adminOnly: true },
+    ],
+  },
+  {
+    label: "Operate",
+    items: [
+      { label: "Calendar", path: "/calendar", icon: "◈" },
+      { label: "Tasks", path: "/tasks", icon: "☑" },
+      { label: "Meeting Recap", path: "/meeting-recap", icon: "▧", roles: ["admin", "leader"] },
+      { label: "People", path: "/people", icon: "◎" },
+      { label: "Team", path: "/team", icon: "⚑", adminOnly: true },
+    ],
+  },
+  {
+    label: "Setup",
+    items: [
+      { label: "SOPs", path: "/sops", icon: "▤", roles: ["admin", "leader"] },
+      { label: "AI Profile", path: "/profile", icon: "◐" },
+      { label: "Resources", path: "/resources", icon: "▦", comingSoon: true },
+    ],
+  },
 ];
 
 const Sidebar = () => {
@@ -26,10 +48,13 @@ const Sidebar = () => {
 
   const memberships = user?.ministries || [];
   const currentRole = memberships.find((m) => m.ministry_id === ministryId)?.role;
-  const visibleNavItems = navItems.filter((item) => {
+  const isVisible = (item) => {
     if (item.roles) return item.roles.includes(currentRole);
     return !item.adminOnly || currentRole === "admin";
-  });
+  };
+  const visibleGroups = navGroups
+    .map((group) => ({ ...group, items: group.items.filter(isVisible) }))
+    .filter((group) => group.items.length > 0);
 
   const handleSwitch = async (e) => {
     const newId = e.target.value;
@@ -103,55 +128,74 @@ const Sidebar = () => {
       </div>
 
       <nav style={{ flex: 1, padding: "12px 6px" }}>
-        {visibleNavItems.map((item) => {
-          const active = location.pathname === item.path;
-          const disabled = !!item.comingSoon;
-          return (
-            <div
-              key={item.path}
-              onClick={() => !disabled && navigate(item.path)}
-              title={disabled ? "Coming soon" : undefined}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "8px 12px",
-                margin: "1px 0",
-                borderRadius: "6px",
-                fontSize: "12px",
-                color: disabled
-                  ? "rgba(255,255,255,0.3)"
-                  : active
-                    ? "var(--white)"
-                    : "rgba(255,255,255,0.55)",
-                background: active && !disabled ? "var(--accent)" : "transparent",
-                cursor: disabled ? "default" : "pointer",
-                transition: "all 0.15s",
-                letterSpacing: "0.02em",
-              }}
-              onMouseEnter={(e) => {
-                if (!active && !disabled)
-                  e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-              }}
-              onMouseLeave={(e) => {
-                if (!active && !disabled)
-                  e.currentTarget.style.background = "transparent";
-              }}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <span style={{ fontSize: "14px", opacity: 0.85 }}>
-                  {item.icon}
-                </span>
-                {item.label}
-              </span>
-              {disabled && (
-                <span style={{ fontSize: "8px", letterSpacing: "0.04em" }}>
-                  SOON
-                </span>
-              )}
-            </div>
-          );
-        })}
+        {visibleGroups.map((group, gi) => (
+          <div key={group.label || "overview"} style={{ marginTop: gi > 0 ? "14px" : 0 }}>
+            {group.label && (
+              <div
+                style={{
+                  padding: "0 12px",
+                  marginBottom: "4px",
+                  fontSize: "9px",
+                  fontWeight: "600",
+                  color: "rgba(255,255,255,0.3)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                }}
+              >
+                {group.label}
+              </div>
+            )}
+            {group.items.map((item) => {
+              const active = location.pathname === item.path;
+              const disabled = !!item.comingSoon;
+              return (
+                <div
+                  key={item.path}
+                  onClick={() => !disabled && navigate(item.path)}
+                  title={disabled ? "Coming soon" : undefined}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "8px 12px",
+                    margin: "1px 0",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    color: disabled
+                      ? "rgba(255,255,255,0.3)"
+                      : active
+                        ? "var(--white)"
+                        : "rgba(255,255,255,0.55)",
+                    background: active && !disabled ? "var(--accent)" : "transparent",
+                    cursor: disabled ? "default" : "pointer",
+                    transition: "all 0.15s",
+                    letterSpacing: "0.02em",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!active && !disabled)
+                      e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!active && !disabled)
+                      e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "14px", opacity: 0.85 }}>
+                      {item.icon}
+                    </span>
+                    {item.label}
+                  </span>
+                  {disabled && (
+                    <span style={{ fontSize: "8px", letterSpacing: "0.04em" }}>
+                      SOON
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       <div
