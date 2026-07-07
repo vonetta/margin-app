@@ -94,7 +94,7 @@ const Sidebar = () => {
         <div
           style={{
             fontSize: "10px",
-            color: "rgba(255,255,255,0.4)",
+            color: "rgba(255,255,255,0.55)",
             marginTop: "3px",
             letterSpacing: "0.04em",
           }}
@@ -137,7 +137,7 @@ const Sidebar = () => {
                   marginBottom: "4px",
                   fontSize: "9px",
                   fontWeight: "600",
-                  color: "rgba(255,255,255,0.3)",
+                  color: "rgba(255,255,255,0.55)",
                   textTransform: "uppercase",
                   letterSpacing: "0.08em",
                 }}
@@ -162,11 +162,11 @@ const Sidebar = () => {
                     borderRadius: "6px",
                     fontSize: "12px",
                     color: disabled
-                      ? "rgba(255,255,255,0.3)"
+                      ? "rgba(255,255,255,0.5)"
                       : active
                         ? "var(--white)"
                         : "rgba(255,255,255,0.55)",
-                    background: active && !disabled ? "var(--accent)" : "transparent",
+                    background: active && !disabled ? "var(--accent-dark)" : "transparent",
                     cursor: disabled ? "default" : "pointer",
                     transition: "all 0.15s",
                     letterSpacing: "0.02em",
@@ -187,7 +187,17 @@ const Sidebar = () => {
                     <span style={{ display: "flex", flexDirection: "column" }}>
                       <span>{item.label}</span>
                       {item.hint && (
-                        <span style={{ fontSize: "9px", color: "rgba(255,255,255,0.35)", fontWeight: "400" }}>
+                        <span
+                          style={{
+                            fontSize: "9px",
+                            // Needs near-full white to stay readable once the
+                            // background switches to --accent-dark on the
+                            // active item — 0.55 alpha only passes contrast
+                            // against the dark navy sidebar background.
+                            color: active ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.55)",
+                            fontWeight: "400",
+                          }}
+                        >
                           {item.hint}
                         </span>
                       )}
@@ -216,7 +226,7 @@ const Sidebar = () => {
           style={{
             padding: "8px 12px",
             fontSize: "11px",
-            color: "rgba(255,255,255,0.4)",
+            color: "rgba(255,255,255,0.55)",
             letterSpacing: "0.02em",
           }}
         >

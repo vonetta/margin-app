@@ -271,12 +271,22 @@ const FlyerGenerator = () => {
 
       <div style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "16px" }}>
         Don't have a flyer yet, just want to write a post?{" "}
-        <span
+        <button
+          type="button"
           onClick={() => navigate("/content")}
-          style={{ color: "var(--navy)", fontWeight: "500", cursor: "pointer" }}
+          style={{
+            color: "var(--navy)",
+            fontWeight: "500",
+            cursor: "pointer",
+            background: "none",
+            border: "none",
+            padding: 0,
+            font: "inherit",
+            textDecoration: "underline",
+          }}
         >
-          Start from Captions instead →
-        </span>
+          Go to Captions →
+        </button>
       </div>
 
       <div
@@ -322,6 +332,7 @@ const FlyerGenerator = () => {
                 <label style={labelStyle}>Date</label>
                 <input
                   type="date"
+                  aria-label="Event date"
                   style={inputStyle}
                   value={form.date}
                   onChange={handleChange("date")}
@@ -645,7 +656,7 @@ const FlyerGenerator = () => {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "var(--gray-400)",
+                color: "var(--gray-600)",
                 fontSize: "12px",
                 minHeight: "320px",
               }}

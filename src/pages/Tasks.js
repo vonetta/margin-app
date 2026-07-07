@@ -1020,7 +1020,7 @@ const Tasks = () => {
                         marginBottom: "10px",
                       }}
                     >
-                      {name} <span style={{ fontWeight: "400", color: "var(--gray-400)" }}>({activeTasks.length})</span>
+                      {name} <span style={{ fontWeight: "400", color: "var(--gray-600)" }}>({activeTasks.length})</span>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                       {activeTasks.map((t) => {
@@ -1061,7 +1061,7 @@ const Tasks = () => {
                         );
                       })}
                       {activeTasks.length === 0 && (
-                        <div style={{ fontSize: "11px", color: "var(--gray-400)", fontStyle: "italic" }}>
+                        <div style={{ fontSize: "11px", color: "var(--gray-600)", fontStyle: "italic" }}>
                           Nothing here
                         </div>
                       )}
@@ -1106,7 +1106,7 @@ const Tasks = () => {
                         marginBottom: "10px",
                       }}
                     >
-                      ✓ Done <span style={{ fontWeight: "400", color: "var(--gray-400)" }}>({doneTasks.length})</span>
+                      ✓ Done <span style={{ fontWeight: "400", color: "var(--gray-600)" }}>({doneTasks.length})</span>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                       {doneTasks.map((t) => (
@@ -1134,7 +1134,7 @@ const Tasks = () => {
                         </div>
                       ))}
                       {doneTasks.length === 0 && (
-                        <div style={{ fontSize: "11px", color: "var(--gray-400)", fontStyle: "italic" }}>
+                        <div style={{ fontSize: "11px", color: "var(--gray-600)", fontStyle: "italic" }}>
                           Drag a task here to complete it
                         </div>
                       )}

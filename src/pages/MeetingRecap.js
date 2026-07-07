@@ -288,6 +288,7 @@ const MeetingRecap = () => {
             />
             <input
               type="date"
+              aria-label="Meeting date"
               value={meetingDate}
               onChange={(e) => setMeetingDate(e.target.value)}
               style={{ ...inputStyle, flex: 1 }}
@@ -297,6 +298,7 @@ const MeetingRecap = () => {
           {inputMode === "file" ? (
             <input
               type="file"
+              aria-label="Meeting transcript file"
               accept=".vtt,.txt,.pdf,text/plain,text/vtt,application/pdf"
               onChange={(e) => setTranscriptFile(e.target.files?.[0] || null)}
               style={{ marginBottom: "10px", fontSize: "12px" }}
@@ -408,6 +410,7 @@ const MeetingRecap = () => {
                         </select>
                         <input
                           type="date"
+                          aria-label="Due date"
                           style={{ ...inputStyle, flex: 1 }}
                           value={editDueDate}
                           onChange={(e) => setEditDueDate(e.target.value)}

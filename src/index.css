@@ -14,8 +14,14 @@
   --gray-200: #f0ede8;
   --gray-300: #e8e6e0;
   --gray-400: #d0ccc8;
-  --gray-500: #aaa;
-  --gray-600: #888;
+  /* gray-500/600 were #aaa/#888 — 2.32:1 and 3.54:1 on white, both fail
+     WCAG AA's 4.5:1 text-contrast minimum, and both are used as real
+     body/label text (not just decoration) across the app. Darkened with
+     margin against the app's actual page background (#f8f7f5, not pure
+     white), preserving their relative hierarchy (500 lighter than 600,
+     both lighter than 700). */
+  --gray-500: #6b6b6b;
+  --gray-600: #5c5c5c;
   --gray-700: #555;
   --border-radius: 8px;
   --border-radius-lg: 12px;

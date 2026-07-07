@@ -311,13 +311,23 @@ const ContentStudio = () => {
       />
 
       <div style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "16px" }}>
-        Already have the flyer, just need the design?{" "}
-        <span
+        Want to design the flyer directly instead of chatting?{" "}
+        <button
+          type="button"
           onClick={() => navigate("/flyers")}
-          style={{ color: "var(--accent-dark)", fontWeight: "500", cursor: "pointer" }}
+          style={{
+            color: "var(--accent-dark)",
+            fontWeight: "500",
+            cursor: "pointer",
+            background: "none",
+            border: "none",
+            padding: 0,
+            font: "inherit",
+            textDecoration: "underline",
+          }}
         >
-          Start from Flyers instead →
-        </span>
+          Go to Flyers →
+        </button>
       </div>
 
       <div style={{ display: "flex", gap: "4px", marginBottom: "24px" }}>
@@ -429,6 +439,7 @@ const ContentStudio = () => {
 
             <div>
               <label
+                htmlFor="content-studio-platform"
                 style={{
                   display: "block",
                   fontSize: "10px",
@@ -441,6 +452,7 @@ const ContentStudio = () => {
                 Platform
               </label>
               <select
+                id="content-studio-platform"
                 value={platform}
                 onChange={(e) => setPlatform(e.target.value)}
                 disabled={messages.length > 0}
@@ -465,6 +477,7 @@ const ContentStudio = () => {
 
             <div>
               <label
+                htmlFor="content-studio-engine"
                 style={{
                   display: "block",
                   fontSize: "10px",
@@ -477,6 +490,7 @@ const ContentStudio = () => {
                 Flyer engine
               </label>
               <select
+                id="content-studio-engine"
                 value={engine}
                 onChange={(e) => setEngine(e.target.value)}
                 disabled={messages.length > 0}
@@ -672,7 +686,7 @@ const ContentStudio = () => {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "var(--gray-400)",
+                  color: "var(--gray-600)",
                   fontSize: "12px",
                   minHeight: "160px",
                   textAlign: "center",
@@ -914,7 +928,7 @@ const ContentStudio = () => {
                       <div
                         style={{
                           fontSize: "10px",
-                          color: "var(--gray-400)",
+                          color: "var(--gray-600)",
                           marginTop: "6px",
                         }}
                       >
