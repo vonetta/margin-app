@@ -33,10 +33,6 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [planUsage, setPlanUsage] = useState(null);
   const memberships = useMemo(() => user?.ministries || [], [user]);
-  const nameFor = useCallback(
-    (mId) => memberships.find((m) => m.ministry_id === mId)?.name || mId,
-    [memberships],
-  );
   // Plan/billing info is admin-only in the UI — leaders get full
   // operational access (calendar, flyers, tasks, etc.) but don't need to
   // see subscription/usage details. The API itself stays open to any
@@ -58,60 +54,52 @@ const Dashboard = () => {
       .catch(() => setPlanUsage(null));
   }, [ministryId, isAdmin]);
 
-  // Same cross-ministry aggregation pattern Tasks.js/Calendar.js already
-  // use — one request per membership with its own x-ministry-id header,
-  // tagged with ministry_id, flattened — rather than a single request
-  // that could only ever see the currently-active ministry.
+  // Scoped to whichever ministry is currently active — unlike Tasks.js/
+  // Calendar.js, which deliberately aggregate across every membership
+  // (their whole point is "everything I'm on the hook for, anywhere"),
+  // the Dashboard is meant to answer "what's going on in the workspace
+  // I'm looking at right now." Switching ministries in the sidebar
+  // re-fetches both widgets for the new one.
   const fetchMyTasks = useCallback(async () => {
-    if (memberships.length === 0) return;
+    if (!ministryId) return;
     setLoadingTasks(true);
     try {
-      const results = await Promise.all(
-        memberships.map((m) =>
-          client
-            .get("/api/tasks", {
-              params: { status: "open" },
-              headers: { "x-ministry-id": m.ministry_id },
-            })
-            .then((res) => res.data.map((t) => ({ ...t, ministry_id: m.ministry_id })))
-            .catch(() => []),
-        ),
-      );
-      const sorted = results
-        .flat()
+      const res = await client.get("/api/tasks", {
+        params: { status: "open" },
+        headers: { "x-ministry-id": ministryId },
+      });
+      const sorted = res.data
+        .map((t) => ({ ...t, ministry_id: ministryId }))
         .sort((a, b) => new Date(a.due_date || 0) - new Date(b.due_date || 0));
       setMyTasks(sorted.slice(0, MAX_TASKS_SHOWN));
+    } catch (err) {
+      setMyTasks([]);
     } finally {
       setLoadingTasks(false);
     }
-  }, [memberships]);
+  }, [ministryId]);
 
   const fetchUpcoming = useCallback(async () => {
-    if (memberships.length === 0) return;
+    if (!ministryId) return;
     setLoadingUpcoming(true);
     try {
       const from = new Date();
       const to = new Date();
       to.setDate(to.getDate() + UPCOMING_WINDOW_DAYS);
-      const results = await Promise.all(
-        memberships.map((m) =>
-          client
-            .get("/api/events/expanded", {
-              params: { from: from.toISOString(), to: to.toISOString() },
-              headers: { "x-ministry-id": m.ministry_id },
-            })
-            .then((res) => res.data.map((occ) => ({ ...occ, ministry_id: m.ministry_id })))
-            .catch(() => []),
-        ),
-      );
-      const sorted = results
-        .flat()
+      const res = await client.get("/api/events/expanded", {
+        params: { from: from.toISOString(), to: to.toISOString() },
+        headers: { "x-ministry-id": ministryId },
+      });
+      const sorted = res.data
+        .map((occ) => ({ ...occ, ministry_id: ministryId }))
         .sort((a, b) => new Date(a.occurrence_start) - new Date(b.occurrence_start));
       setUpcoming(sorted.slice(0, MAX_UPCOMING_SHOWN));
+    } catch (err) {
+      setUpcoming([]);
     } finally {
       setLoadingUpcoming(false);
     }
-  }, [memberships]);
+  }, [ministryId]);
 
   useEffect(() => {
     fetchMyTasks();
@@ -393,11 +381,6 @@ const Dashboard = () => {
                       >
                         {task.title}
                       </div>
-                      {memberships.length > 1 && (
-                        <div style={{ fontSize: "10px", color: "var(--gray-500)" }}>
-                          {nameFor(task.ministry_id)}
-                        </div>
-                      )}
                     </div>
                     {due && (
                       <div
@@ -507,7 +490,6 @@ const Dashboard = () => {
                   <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>
                     {formatOccurrence(occ.occurrence_start)}
                     {occ.location ? ` · ${occ.location}` : ""}
-                    {memberships.length > 1 ? ` · ${nameFor(occ.ministry_id)}` : ""}
                   </div>
                 </div>
               ))}

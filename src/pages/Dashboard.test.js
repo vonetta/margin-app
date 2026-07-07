@@ -86,6 +86,30 @@ describe("My Tasks and Upcoming widgets", () => {
   test("shows open tasks sorted by due date, with an overdue one flagged", async () => {
     mockUser = {
       name: "Test User",
+      ministries: [{ ministry_id: "ktm-test", name: "KTM Test" }],
+    };
+
+    client.get.mockImplementation((url, opts) => {
+      if (url === "/api/ministry/plan-usage") return Promise.reject(new Error("skip"));
+      if (url === "/api/tasks") {
+        expect(opts.headers["x-ministry-id"]).toBe("ktm-test");
+        return Promise.resolve({
+          data: [
+            { _id: "t1", title: "Overdue task", due_date: "2020-01-01T00:00:00Z", status: "open" },
+          ],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    render(<Dashboard />);
+
+    expect(await screen.findByText("Overdue task")).toBeInTheDocument();
+  });
+
+  test("only ever fetches/shows the currently active ministry, even with multiple memberships", async () => {
+    mockUser = {
+      name: "Test User",
       ministries: [
         { ministry_id: "ktm-test", name: "KTM Test" },
         { ministry_id: "salt-light", name: "Salt & Light" },
@@ -96,16 +120,13 @@ describe("My Tasks and Upcoming widgets", () => {
       if (url === "/api/ministry/plan-usage") return Promise.reject(new Error("skip"));
       if (url === "/api/tasks" && opts.headers["x-ministry-id"] === "ktm-test") {
         return Promise.resolve({
-          data: [
-            { _id: "t1", title: "Overdue task", due_date: "2020-01-01T00:00:00Z", status: "open" },
-          ],
+          data: [{ _id: "t1", title: "KTM task", due_date: null, status: "open" }],
         });
       }
+      // Should never be called for a ministry other than the active one.
       if (url === "/api/tasks" && opts.headers["x-ministry-id"] === "salt-light") {
         return Promise.resolve({
-          data: [
-            { _id: "t2", title: "Future task", due_date: "2099-01-01T00:00:00Z", status: "open" },
-          ],
+          data: [{ _id: "t2", title: "Salt & Light task", due_date: null, status: "open" }],
         });
       }
       return Promise.resolve({ data: [] });
@@ -113,11 +134,11 @@ describe("My Tasks and Upcoming widgets", () => {
 
     render(<Dashboard />);
 
-    expect(await screen.findByText("Overdue task")).toBeInTheDocument();
-    expect(await screen.findByText("Future task")).toBeInTheDocument();
-    // Both ministry names shown since the user has more than one membership.
-    expect(screen.getByText("KTM Test")).toBeInTheDocument();
-    expect(screen.getByText("Salt & Light")).toBeInTheDocument();
+    expect(await screen.findByText("KTM task")).toBeInTheDocument();
+    expect(screen.queryByText("Salt & Light task")).not.toBeInTheDocument();
+    const taskCalls = client.get.mock.calls.filter(([url]) => url === "/api/tasks");
+    expect(taskCalls.length).toBe(1);
+    expect(taskCalls[0][1].headers["x-ministry-id"]).toBe("ktm-test");
   });
 
   test("completing a task removes it from the list", async () => {
