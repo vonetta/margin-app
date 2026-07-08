@@ -60,6 +60,12 @@ const Onboarding = () => {
   const [contentHashtags, setContentHashtags] = useState("");
   const [ctaText, setCtaText] = useState("");
 
+  const [prefillUrl, setPrefillUrl] = useState("");
+  const [prefillPosts, setPrefillPosts] = useState("");
+  const [showPrefillPosts, setShowPrefillPosts] = useState(false);
+  const [prefilling, setPrefilling] = useState(false);
+  const [prefillNotice, setPrefillNotice] = useState("");
+
   const loadExisting = useCallback(async () => {
     setLoading(true);
     try {
@@ -103,6 +109,53 @@ const Onboarding = () => {
   useEffect(() => {
     loadExisting();
   }, [loadExisting]);
+
+  // Fetches the ministry's website server-side and pre-fills the wizard's
+  // (editable) fields from what Gemini drafts. Only non-empty values from
+  // the draft are applied, so a thin/partial scrape never blanks out
+  // something already entered. Nothing is saved here — the user reviews
+  // every field and saves through the normal step buttons.
+  const handlePrefill = async () => {
+    if (!prefillUrl.trim()) return;
+    setPrefilling(true);
+    setError("");
+    setPrefillNotice("");
+    try {
+      const res = await client.post("/api/profile/onboarding/prefill", {
+        website_url: prefillUrl.trim(),
+        past_posts: prefillPosts.trim() || undefined,
+      });
+      const d = res.data;
+      const vp = d.voice_profile || {};
+      if (vp.persona_name) setPersonaName(vp.persona_name);
+      if (vp.tone_pillars?.length) setTonePillars(vp.tone_pillars.join(", "));
+      if (vp.sample_phrases?.length) setSamplePhrases(vp.sample_phrases.join("\n"));
+      if (vp.avoid?.length) setAvoidList(vp.avoid.join(", "));
+
+      const sc = d.suggested_colors || {};
+      if (sc.primary || sc.accent) {
+        setColors((c) => ({
+          ...c,
+          ...(sc.primary ? { primary: sc.primary } : {}),
+          ...(sc.accent ? { accent: sc.accent } : {}),
+        }));
+      }
+
+      const h = d.hashtags || {};
+      if (h.brand?.length) setBrandHashtags(h.brand.join(" "));
+      if (h.content?.length) setContentHashtags(h.content.join(" "));
+
+      setPrefillNotice(
+        d.source?.had_readable_text
+          ? "We drafted your profile from your website — review and tweak each field below, then step through to save."
+          : "We couldn't pull much from that site, so most fields are still blank — fill them in below.",
+      );
+    } catch (err) {
+      setError(err.response?.data?.error || "Couldn't read that website — you can fill everything in manually below.");
+    } finally {
+      setPrefilling(false);
+    }
+  };
 
   const parseList = (text) =>
     text
@@ -237,6 +290,80 @@ const Onboarding = () => {
           }}
         >
           {error}
+        </div>
+      )}
+
+      {step === 0 && (
+        <div
+          style={{
+            ...cardStyle,
+            marginBottom: "16px",
+            background: "#f4f8fb",
+            border: "0.5px solid var(--navy)",
+          }}
+        >
+          <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--navy)", marginBottom: "4px" }}>
+            ✨ Start from your website
+          </div>
+          <p style={{ fontSize: "12px", color: "var(--gray-600)", marginBottom: "12px", maxWidth: "520px" }}>
+            Paste your ministry's website and we'll draft your voice, colors, and hashtags for you. Everything below
+            stays editable — this just gives you a head start.
+          </p>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <input
+              type="url"
+              placeholder="https://yourministry.org"
+              value={prefillUrl}
+              onChange={(e) => setPrefillUrl(e.target.value)}
+              style={{ ...inputStyle, flex: 1, minWidth: "240px" }}
+            />
+            <button
+              type="button"
+              onClick={handlePrefill}
+              disabled={prefilling || !prefillUrl.trim()}
+              style={{
+                padding: "8px 16px",
+                background: prefilling || !prefillUrl.trim() ? "var(--gray-400)" : "var(--navy)",
+                color: "var(--white)",
+                border: "none",
+                borderRadius: "var(--border-radius)",
+                fontSize: "12px",
+                fontWeight: "600",
+                cursor: prefilling || !prefillUrl.trim() ? "default" : "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {prefilling ? "Reading your site…" : "Fill from my website"}
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowPrefillPosts((v) => !v)}
+            style={{
+              marginTop: "8px",
+              padding: 0,
+              background: "none",
+              border: "none",
+              color: "var(--navy)",
+              fontSize: "11px",
+              cursor: "pointer",
+              textDecoration: "underline",
+            }}
+          >
+            {showPrefillPosts ? "Hide past posts" : "Also paste a few past social posts (optional, sharpens the voice)"}
+          </button>
+          {showPrefillPosts && (
+            <textarea
+              placeholder="Paste a few of your recent captions or posts…"
+              value={prefillPosts}
+              onChange={(e) => setPrefillPosts(e.target.value)}
+              rows={4}
+              style={{ ...inputStyle, marginTop: "8px", resize: "vertical" }}
+            />
+          )}
+          {prefillNotice && (
+            <div style={{ marginTop: "10px", fontSize: "12px", color: "var(--navy)" }}>{prefillNotice}</div>
+          )}
         </div>
       )}
 
