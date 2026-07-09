@@ -248,6 +248,7 @@ const ContentStudio = () => {
       const res = await client.post("/api/flyers/generate", {
         title: event.title,
         subtitle: event.subtitle,
+        kicker: event.kicker,
         description: event.description,
         theme_tags: event.theme_tags,
         highlights: event.highlights,
@@ -255,7 +256,9 @@ const ContentStudio = () => {
         date: event.date,
         location: event.location,
         cost: event.cost,
+        rsvp_by: event.rsvp_by,
         cta: event.cta,
+        contact: event.contact,
         qr_url: event.registration_url,
         style: style || finalStyle || undefined,
         background_url: backgroundUrl || undefined,

@@ -53,6 +53,18 @@ const finalizeChatResponseWithTone = {
   },
 };
 
+const finalizeChatResponseWithTier1Fields = {
+  data: {
+    ...finalizeChatResponse.data,
+    event: {
+      ...finalizeChatResponse.data.event,
+      kicker: "Renewed — Week 3",
+      rsvp_by: "July 8",
+      contact: "Questions? Text Sarah at 555-1234",
+    },
+  },
+};
+
 beforeEach(() => {
   client.get.mockReset();
   client.post.mockReset();
@@ -96,6 +108,36 @@ test("generates the matching flyer automatically as soon as the caption finalize
     ),
   );
   await screen.findByAltText("Generated flyer");
+});
+
+test("threads kicker, rsvp_by, and contact from the chat-drafted event through to flyer generation", async () => {
+  client.post.mockImplementation((url) => {
+    if (url === "/api/content/chat") return Promise.resolve(finalizeChatResponseWithTier1Fields);
+    if (url === "/api/flyers/generate")
+      return Promise.resolve({ data: { social_url: "https://r2.dev/flyer.png" } });
+    return Promise.resolve({ data: {} });
+  });
+
+  render(<ContentStudio />);
+
+  const textarea = screen.getByPlaceholderText(
+    "Worship Workshop, July 20, 12pm - 6pm, $100, lunch provided...",
+  );
+  fireEvent.change(textarea, { target: { value: "Worship Intensive" } });
+  fireEvent.click(screen.getByText("✦ Start"));
+
+  await screen.findAllByText("Final caption");
+
+  await waitFor(() =>
+    expect(client.post).toHaveBeenCalledWith(
+      "/api/flyers/generate",
+      expect.objectContaining({
+        kicker: "Renewed — Week 3",
+        rsvp_by: "July 8",
+        contact: "Questions? Text Sarah at 555-1234",
+      }),
+    ),
+  );
 });
 
 test("sends the wizard's chosen layout through to the actual flyer-generation request", async () => {

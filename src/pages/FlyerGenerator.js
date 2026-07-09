@@ -60,10 +60,15 @@ const FlyerGenerator = () => {
   const [form, setForm] = useState({
     title: "",
     subtitle: "",
+    kicker: "",
     date: "",
+    time: "",
+    end_time: "",
     location: "",
     cost: "",
+    rsvp_by: "",
     cta: "",
+    contact: "",
     qr_url: "",
     description: "",
     audience: "",
@@ -218,10 +223,15 @@ const FlyerGenerator = () => {
   const buildPayload = () => ({
     title: form.title,
     subtitle: form.subtitle || undefined,
+    kicker: form.kicker || undefined,
     date: form.date || undefined,
+    time: form.time || undefined,
+    end_time: form.end_time || undefined,
     location: form.location || undefined,
     cost: form.cost || undefined,
+    rsvp_by: form.rsvp_by || undefined,
     cta: form.cta || undefined,
+    contact: form.contact || undefined,
     qr_url: form.qr_url || undefined,
     description: form.description || undefined,
     audience: form.audience || undefined,
@@ -357,6 +367,16 @@ const FlyerGenerator = () => {
             <div style={sectionTitleStyle}>Event details</div>
 
             <div>
+              <label style={labelStyle}>Series/theme name (optional)</label>
+              <input
+                style={inputStyle}
+                value={form.kicker}
+                onChange={handleChange("kicker")}
+                placeholder="Renewed — Week 3"
+              />
+            </div>
+
+            <div>
               <label style={labelStyle}>Title</label>
               <input
                 style={inputStyle}
@@ -412,12 +432,44 @@ const FlyerGenerator = () => {
                 />
               </div>
               <div style={{ flex: 1 }}>
+                <label style={labelStyle}>Start time (optional)</label>
+                <input
+                  type="time"
+                  aria-label="Event start time"
+                  style={inputStyle}
+                  value={form.time}
+                  onChange={handleChange("time")}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>End time (optional)</label>
+                <input
+                  type="time"
+                  aria-label="Event end time"
+                  style={inputStyle}
+                  value={form.end_time}
+                  onChange={handleChange("end_time")}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "12px" }}>
+              <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Cost</label>
                 <input
                   style={inputStyle}
                   value={form.cost}
                   onChange={handleChange("cost")}
                   placeholder="$25 or Free"
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>RSVP by (optional)</label>
+                <input
+                  style={inputStyle}
+                  value={form.rsvp_by}
+                  onChange={handleChange("rsvp_by")}
+                  placeholder="July 8"
                 />
               </div>
             </div>
@@ -481,6 +533,16 @@ const FlyerGenerator = () => {
                 value={form.cta}
                 onChange={handleChange("cta")}
                 placeholder="Register now"
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Contact for questions (optional)</label>
+              <input
+                style={inputStyle}
+                value={form.contact}
+                onChange={handleChange("contact")}
+                placeholder="Questions? Text Sarah at 555-1234"
               />
             </div>
 
