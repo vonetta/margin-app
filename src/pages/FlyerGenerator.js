@@ -65,6 +65,10 @@ const FlyerGenerator = () => {
     cost: "",
     cta: "",
     qr_url: "",
+    description: "",
+    audience: "",
+    theme_tags: "",
+    highlights: "",
   });
 
   const [people, setPeople] = useState([]);
@@ -199,6 +203,18 @@ const FlyerGenerator = () => {
   const handleChange = (field) => (e) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
 
+  const parseCommaList = (text) =>
+    text
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  const parseLines = (text) =>
+    text
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
   const buildPayload = () => ({
     title: form.title,
     subtitle: form.subtitle || undefined,
@@ -207,6 +223,10 @@ const FlyerGenerator = () => {
     cost: form.cost || undefined,
     cta: form.cta || undefined,
     qr_url: form.qr_url || undefined,
+    description: form.description || undefined,
+    audience: form.audience || undefined,
+    theme_tags: form.theme_tags ? parseCommaList(form.theme_tags) : undefined,
+    highlights: form.highlights ? parseLines(form.highlights) : undefined,
     host_id: hostId || undefined,
     speaker_ids: speakerIds,
     layout: engine === "ai" || selectedLayout === "auto" ? undefined : selectedLayout,
@@ -409,6 +429,48 @@ const FlyerGenerator = () => {
                 value={form.location}
                 onChange={handleChange("location")}
                 placeholder="123 Main St, Atlanta GA"
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Description</label>
+              <textarea
+                style={{ ...inputStyle, resize: "vertical" }}
+                rows={2}
+                value={form.description}
+                onChange={handleChange("description")}
+                placeholder="A short, evocative sentence about the heart of the event"
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Who's this for? (optional)</label>
+              <input
+                style={inputStyle}
+                value={form.audience}
+                onChange={handleChange("audience")}
+                placeholder="Worship leaders, singers, and songwriters"
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Theme tags (comma-separated, optional)</label>
+              <input
+                style={inputStyle}
+                value={form.theme_tags}
+                onChange={handleChange("theme_tags")}
+                placeholder="Teaching, Impartation, Activation"
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Highlights (one per line, optional)</label>
+              <textarea
+                style={{ ...inputStyle, resize: "vertical" }}
+                rows={3}
+                value={form.highlights}
+                onChange={handleChange("highlights")}
+                placeholder={"Hands-on prophetic activation\nTime for personal ministry\nConnect with other leaders"}
               />
             </div>
 

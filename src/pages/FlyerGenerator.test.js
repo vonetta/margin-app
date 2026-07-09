@@ -219,3 +219,74 @@ describe("tone suggestion (manual entry)", () => {
     expect(select.value).toBe("formal");
   });
 });
+
+describe("description, audience, theme tags, and highlights (Tier 0 fields)", () => {
+  test("sends description, audience, and parsed theme_tags/highlights in the generate payload", async () => {
+    client.post.mockImplementation((url) => {
+      if (url === "/api/flyers/generate")
+        return Promise.resolve({
+          data: { _id: "f-new", title: "New Flyer", layout: "monument", social_url: "https://example.com/new.png" },
+        });
+      return Promise.resolve({ data: {} });
+    });
+
+    render(<FlyerGenerator />);
+    await screen.findByText("Worship Intensive");
+
+    fireEvent.change(screen.getByPlaceholderText("Worship Workshop"), { target: { value: "New Flyer" } });
+    fireEvent.change(screen.getByPlaceholderText("A short, evocative sentence about the heart of the event"), {
+      target: { value: "Step into the supernatural." },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Worship leaders, singers, and songwriters"), {
+      target: { value: "Leaders and prophetic voices" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Teaching, Impartation, Activation"), {
+      target: { value: "Teaching,  Impartation ,Activation" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/Hands-on prophetic activation/),
+      { target: { value: "Hands-on prophetic activation\n\nTime for personal ministry" } },
+    );
+    fireEvent.click(screen.getByText(/Generate flyer/));
+
+    await waitFor(() =>
+      expect(client.post).toHaveBeenCalledWith(
+        "/api/flyers/generate",
+        expect.objectContaining({
+          description: "Step into the supernatural.",
+          audience: "Leaders and prophetic voices",
+          theme_tags: ["Teaching", "Impartation", "Activation"],
+          highlights: ["Hands-on prophetic activation", "Time for personal ministry"],
+        }),
+      ),
+    );
+  });
+
+  test("omits description/audience/theme_tags/highlights entirely when left blank", async () => {
+    client.post.mockImplementation((url) => {
+      if (url === "/api/flyers/generate")
+        return Promise.resolve({
+          data: { _id: "f-new", title: "New Flyer", layout: "monument", social_url: "https://example.com/new.png" },
+        });
+      return Promise.resolve({ data: {} });
+    });
+
+    render(<FlyerGenerator />);
+    await screen.findByText("Worship Intensive");
+
+    fireEvent.change(screen.getByPlaceholderText("Worship Workshop"), { target: { value: "New Flyer" } });
+    fireEvent.click(screen.getByText(/Generate flyer/));
+
+    await waitFor(() =>
+      expect(client.post).toHaveBeenCalledWith(
+        "/api/flyers/generate",
+        expect.objectContaining({
+          description: undefined,
+          audience: undefined,
+          theme_tags: undefined,
+          highlights: undefined,
+        }),
+      ),
+    );
+  });
+});
