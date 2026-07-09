@@ -27,6 +27,11 @@ const ContentStudio = () => {
   const [finalCaption, setFinalCaption] = useState(null);
   const [finalEvent, setFinalEvent] = useState(null);
   const [finalStyle, setFinalStyle] = useState(null);
+  // AI-proposed tone from the chat, already clamped server-side to one of
+  // this ministry's own tone_keywords categories (never an invented one) —
+  // null means either nothing matched or the model found no clear signal.
+  const [finalTone, setFinalTone] = useState(null);
+  const [toneOptions, setToneOptions] = useState([]);
   const [showStyleWizard, setShowStyleWizard] = useState(false);
   const [flyerUrl, setFlyerUrl] = useState(null);
   const [generatingFlyer, setGeneratingFlyer] = useState(false);
@@ -61,6 +66,14 @@ const ContentStudio = () => {
       .get("/api/flyers/layouts")
       .then((res) => setLayouts(res.data || []))
       .catch(() => setLayouts([]));
+    // Just fetching this ministry's own tone category names for the
+    // dropdown's option list — no title/subtitle to infer from yet, so
+    // the returned `tone` suggestion is ignored (the chat's own,
+    // content-aware suggestion is used for that instead).
+    client
+      .post("/api/flyers/infer-tone", {})
+      .then((res) => setToneOptions(res.data?.options || []))
+      .catch(() => setToneOptions([]));
   }, []);
 
   const fetchDrafts = useCallback(async () => {
@@ -117,17 +130,18 @@ const ContentStudio = () => {
       setFinalCaption(res.data.done ? res.data.caption : null);
       setFinalEvent(res.data.done ? res.data.event || null : null);
       setFinalStyle(res.data.done ? res.data.style || null : null);
+      setFinalTone(res.data.done ? res.data.tone || null : null);
       setFlyerUrl(null);
 
       // Generate the matching flyer immediately alongside the caption
       // instead of requiring a separate "Generate matching flyer" click
-      // afterward — pass the just-received event/style directly rather
-      // than relying on finalEvent/finalStyle state, which hasn't
-      // re-rendered yet at this point in the same tick. Skipped when the
-      // user uploaded a flyer they already made, since they explicitly
-      // said not to generate a new image.
+      // afterward — pass the just-received event/style/tone directly
+      // rather than relying on finalEvent/finalStyle/finalTone state,
+      // which hasn't re-rendered yet at this point in the same tick.
+      // Skipped when the user uploaded a flyer they already made, since
+      // they explicitly said not to generate a new image.
       if (res.data.done && res.data.event?.title && !hasExistingFlyer) {
-        handleGenerateFlyer(res.data.style, undefined, res.data.event);
+        handleGenerateFlyer(res.data.style, undefined, res.data.event, res.data.tone || null);
       }
     } catch (err) {
       setError(err.response?.data?.error || "Something went wrong");
@@ -153,6 +167,7 @@ const ContentStudio = () => {
     setFinalCaption(null);
     setFinalEvent(null);
     setFinalStyle(null);
+    setFinalTone(null);
     setShowStyleWizard(false);
     setFlyerUrl(null);
     setSwitchNotice(null);
@@ -215,12 +230,16 @@ const ContentStudio = () => {
     }
   };
 
-  // eventOverride lets the chat-completion handler trigger generation with
-  // the event it just received, without waiting for finalEvent state to
-  // re-render first; every other caller (the manual buttons, the style
-  // wizard) omits it and falls back to the current finalEvent state.
-  const handleGenerateFlyer = async (style, backgroundUrl, eventOverride) => {
+  // eventOverride/toneOverride let the chat-completion handler (and the
+  // tone dropdown) trigger generation with a value that hasn't landed in
+  // state yet, without waiting for a re-render first; every other caller
+  // (the manual buttons, the style wizard) omits them and falls back to
+  // current state. toneOverride is deliberately checked against
+  // `undefined`, not falsy — `null` is a real, distinct value here
+  // ("explicitly no tone preference"), not "no override given".
+  const handleGenerateFlyer = async (style, backgroundUrl, eventOverride, toneOverride) => {
     const event = eventOverride || finalEvent;
+    const tone = toneOverride !== undefined ? toneOverride : finalTone;
     if (!event?.title) return;
     setShowStyleWizard(false);
     setGeneratingFlyer(true);
@@ -240,6 +259,7 @@ const ContentStudio = () => {
         qr_url: event.registration_url,
         style: style || finalStyle || undefined,
         background_url: backgroundUrl || undefined,
+        tone: tone || undefined,
         platform,
         host_id: hostId || undefined,
         speaker_ids: speakerIds,
@@ -248,6 +268,7 @@ const ContentStudio = () => {
       });
       setFlyerUrl(res.data.social_url);
       if (style) setFinalStyle(style);
+      if (toneOverride !== undefined) setFinalTone(toneOverride);
     } catch (err) {
       setError(err.response?.data?.error || "Failed to generate flyer");
     } finally {
@@ -727,6 +748,38 @@ const ContentStudio = () => {
                 >
                   {finalCaption}
                 </div>
+                {finalEvent?.title && toneOptions.length > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <label
+                      htmlFor="content-studio-tone"
+                      style={{ fontSize: "11px", color: "var(--gray-600)", whiteSpace: "nowrap" }}
+                    >
+                      Tone{finalTone ? ` (detected: ${finalTone})` : ""}
+                    </label>
+                    <select
+                      id="content-studio-tone"
+                      value={finalTone || ""}
+                      disabled={generatingFlyer}
+                      onChange={(e) =>
+                        handleGenerateFlyer(undefined, undefined, undefined, e.target.value || null)
+                      }
+                      style={{
+                        fontSize: "12px",
+                        padding: "4px 8px",
+                        borderRadius: "var(--border-radius)",
+                        border: "0.5px solid var(--gray-300)",
+                        background: "var(--white)",
+                      }}
+                    >
+                      <option value="">No preference</option>
+                      {toneOptions.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   <button
                     onClick={sendToQueue}

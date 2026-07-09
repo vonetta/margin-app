@@ -46,6 +46,13 @@ const finalizeChatResponse = {
   },
 };
 
+const finalizeChatResponseWithTone = {
+  data: {
+    ...finalizeChatResponse.data,
+    tone: "energetic",
+  },
+};
+
 beforeEach(() => {
   client.get.mockReset();
   client.post.mockReset();
@@ -182,4 +189,117 @@ test("picking AI Studio sends engine: ai and skips the layout field", async () =
       expect.objectContaining({ engine: "ai", layout: undefined }),
     ),
   );
+});
+
+describe("tone-aware flyer generation", () => {
+  const withToneOptions = (url) => {
+    if (url === "/api/flyers/infer-tone") return Promise.resolve({ data: { tone: null, options: ["formal", "energetic"] } });
+    return null;
+  };
+
+  test("threads the AI-proposed tone through to the auto-generated flyer", async () => {
+    client.post.mockImplementation((url) => {
+      const opts = withToneOptions(url);
+      if (opts) return opts;
+      if (url === "/api/content/chat") return Promise.resolve(finalizeChatResponseWithTone);
+      if (url === "/api/flyers/generate")
+        return Promise.resolve({ data: { social_url: "https://r2.dev/flyer.png" } });
+      return Promise.resolve({ data: {} });
+    });
+
+    render(<ContentStudio />);
+    const textarea = screen.getByPlaceholderText(
+      "Worship Workshop, July 20, 12pm - 6pm, $100, lunch provided...",
+    );
+    fireEvent.change(textarea, { target: { value: "Pizza Night" } });
+    fireEvent.click(screen.getByText("✦ Start"));
+
+    await screen.findAllByText("Final caption");
+
+    await waitFor(() =>
+      expect(client.post).toHaveBeenCalledWith(
+        "/api/flyers/generate",
+        expect.objectContaining({ tone: "energetic" }),
+      ),
+    );
+  });
+
+  test("shows a visible, editable tone control pre-filled with the detected tone", async () => {
+    client.post.mockImplementation((url) => {
+      const opts = withToneOptions(url);
+      if (opts) return opts;
+      if (url === "/api/content/chat") return Promise.resolve(finalizeChatResponseWithTone);
+      if (url === "/api/flyers/generate")
+        return Promise.resolve({ data: { social_url: "https://r2.dev/flyer.png" } });
+      return Promise.resolve({ data: {} });
+    });
+
+    render(<ContentStudio />);
+    const textarea = screen.getByPlaceholderText(
+      "Worship Workshop, July 20, 12pm - 6pm, $100, lunch provided...",
+    );
+    fireEvent.change(textarea, { target: { value: "Pizza Night" } });
+    fireEvent.click(screen.getByText("✦ Start"));
+
+    await screen.findAllByText("Final caption");
+    await screen.findByAltText("Generated flyer");
+
+    expect(screen.getByText(/detected: energetic/)).toBeInTheDocument();
+    const select = document.getElementById("content-studio-tone");
+    expect(select.value).toBe("energetic");
+  });
+
+  test("changing the tone dropdown regenerates the flyer with the new value", async () => {
+    client.post.mockImplementation((url) => {
+      const opts = withToneOptions(url);
+      if (opts) return opts;
+      if (url === "/api/content/chat") return Promise.resolve(finalizeChatResponseWithTone);
+      if (url === "/api/flyers/generate")
+        return Promise.resolve({ data: { social_url: "https://r2.dev/flyer.png" } });
+      return Promise.resolve({ data: {} });
+    });
+
+    render(<ContentStudio />);
+    const textarea = screen.getByPlaceholderText(
+      "Worship Workshop, July 20, 12pm - 6pm, $100, lunch provided...",
+    );
+    fireEvent.change(textarea, { target: { value: "Pizza Night" } });
+    fireEvent.click(screen.getByText("✦ Start"));
+
+    await screen.findAllByText("Final caption");
+    await screen.findByAltText("Generated flyer");
+
+    client.post.mockClear();
+    fireEvent.change(document.getElementById("content-studio-tone"), { target: { value: "formal" } });
+
+    await waitFor(() =>
+      expect(client.post).toHaveBeenCalledWith(
+        "/api/flyers/generate",
+        expect.objectContaining({ tone: "formal" }),
+      ),
+    );
+  });
+
+  test("does not render a tone control when the ministry has no defined tone categories", async () => {
+    client.post.mockImplementation((url) => {
+      if (url === "/api/flyers/infer-tone")
+        return Promise.resolve({ data: { tone: null, options: [] } });
+      if (url === "/api/content/chat") return Promise.resolve(finalizeChatResponse);
+      if (url === "/api/flyers/generate")
+        return Promise.resolve({ data: { social_url: "https://r2.dev/flyer.png" } });
+      return Promise.resolve({ data: {} });
+    });
+
+    render(<ContentStudio />);
+    const textarea = screen.getByPlaceholderText(
+      "Worship Workshop, July 20, 12pm - 6pm, $100, lunch provided...",
+    );
+    fireEvent.change(textarea, { target: { value: "Worship Intensive" } });
+    fireEvent.click(screen.getByText("✦ Start"));
+
+    await screen.findAllByText("Final caption");
+    await screen.findByAltText("Generated flyer");
+
+    expect(document.getElementById("content-studio-tone")).toBeNull();
+  });
 });

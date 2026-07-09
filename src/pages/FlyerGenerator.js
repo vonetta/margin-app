@@ -77,6 +77,14 @@ const FlyerGenerator = () => {
   const [selectedLayout, setSelectedLayout] = useState("auto");
   const [engine, setEngine] = useState("template");
 
+  // No AI call for this path — a free keyword suggestion (server-side,
+  // against this ministry's own tone categories) that the user can accept
+  // or override before generating. See ContentStudio's chat-drafted flow
+  // for the AI-proposed equivalent.
+  const [toneOptions, setToneOptions] = useState([]);
+  const [tone, setTone] = useState("");
+  const [toneTouched, setToneTouched] = useState(false);
+
   const [generating, setGenerating] = useState(false);
   const [flyer, setFlyer] = useState(null);
   const [error, setError] = useState("");
@@ -133,6 +141,25 @@ const FlyerGenerator = () => {
     fetchHistory();
   }, [fetchPeople, fetchLayouts, fetchHistory]);
 
+  // Debounced, free (no AI) suggestion as the user types — mirrors the
+  // duplicate-task-warning pattern elsewhere in this app (400ms, only
+  // once there's enough text to be worth a round-trip). Only overwrites
+  // `tone` while the user hasn't touched the dropdown themselves, so an
+  // explicit choice is never silently clobbered by a later suggestion.
+  useEffect(() => {
+    if (!form.title || form.title.trim().length < 4) return undefined;
+    const timer = setTimeout(() => {
+      client
+        .post("/api/flyers/infer-tone", { title: form.title, subtitle: form.subtitle })
+        .then((res) => {
+          setToneOptions(res.data?.options || []);
+          if (!toneTouched) setTone(res.data?.tone || "");
+        })
+        .catch(() => {});
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [form.title, form.subtitle, toneTouched]);
+
   const host = useMemo(
     () => people.find((p) => p._id === hostId) || null,
     [people, hostId],
@@ -184,6 +211,7 @@ const FlyerGenerator = () => {
     speaker_ids: speakerIds,
     layout: engine === "ai" || selectedLayout === "auto" ? undefined : selectedLayout,
     engine,
+    tone: tone || undefined,
   });
 
   const handleGenerate = async () => {
@@ -327,6 +355,30 @@ const FlyerGenerator = () => {
                 placeholder="An evening of renewal"
               />
             </div>
+
+            {toneOptions.length > 0 && (
+              <div>
+                <label htmlFor="flyer-tone" style={labelStyle}>
+                  Tone
+                </label>
+                <select
+                  id="flyer-tone"
+                  style={inputStyle}
+                  value={tone}
+                  onChange={(e) => {
+                    setToneTouched(true);
+                    setTone(e.target.value);
+                  }}
+                >
+                  <option value="">No preference</option>
+                  {toneOptions.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div style={{ display: "flex", gap: "12px" }}>
               <div style={{ flex: 1 }}>

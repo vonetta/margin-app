@@ -149,3 +149,73 @@ test("deleting a flyer requires a confirm step before the DELETE call fires", as
   fireEvent.click(screen.getByText("Confirm"));
   await waitFor(() => expect(client.delete).toHaveBeenCalledWith("/api/flyers/f1"));
 });
+
+describe("tone suggestion (manual entry)", () => {
+  test("does not show a tone control before the ministry's own categories are known", async () => {
+    render(<FlyerGenerator />);
+    await screen.findByText("Worship Intensive");
+    expect(document.getElementById("flyer-tone")).toBeNull();
+  });
+
+  test("suggests a tone from the title after a debounce, and includes it in the generate payload", async () => {
+    client.post.mockImplementation((url) => {
+      if (url === "/api/flyers/infer-tone")
+        return Promise.resolve({ data: { tone: "energetic", options: ["formal", "energetic"] } });
+      if (url === "/api/flyers/generate")
+        return Promise.resolve({
+          data: { _id: "f-new", title: "Pizza Night", layout: "monument", social_url: "https://example.com/new.png" },
+        });
+      return Promise.resolve({ data: {} });
+    });
+
+    render(<FlyerGenerator />);
+    await screen.findByText("Worship Intensive");
+
+    fireEvent.change(screen.getByPlaceholderText("Worship Workshop"), { target: { value: "Pizza Night" } });
+
+    await waitFor(() =>
+      expect(client.post).toHaveBeenCalledWith("/api/flyers/infer-tone", {
+        title: "Pizza Night",
+        subtitle: "",
+      }),
+    );
+
+    const select = await screen.findByLabelText("Tone");
+    await waitFor(() => expect(select.value).toBe("energetic"));
+
+    fireEvent.click(screen.getByText(/Generate flyer/));
+
+    await waitFor(() =>
+      expect(client.post).toHaveBeenCalledWith(
+        "/api/flyers/generate",
+        expect.objectContaining({ tone: "energetic" }),
+      ),
+    );
+  });
+
+  test("a manually chosen tone is never overwritten by a later suggestion", async () => {
+    client.post.mockImplementation((url) => {
+      if (url === "/api/flyers/infer-tone")
+        return Promise.resolve({ data: { tone: "energetic", options: ["formal", "energetic"] } });
+      return Promise.resolve({ data: {} });
+    });
+
+    render(<FlyerGenerator />);
+    await screen.findByText("Worship Intensive");
+
+    fireEvent.change(screen.getByPlaceholderText("Worship Workshop"), { target: { value: "Pizza Night" } });
+    const select = await screen.findByLabelText("Tone");
+    await waitFor(() => expect(select.value).toBe("energetic"));
+
+    fireEvent.change(select, { target: { value: "formal" } });
+    expect(select.value).toBe("formal");
+
+    // Further edits to the title would otherwise re-trigger the debounced
+    // suggestion — it must not clobber the user's explicit choice.
+    fireEvent.change(screen.getByPlaceholderText("Worship Workshop"), {
+      target: { value: "Pizza Night Extravaganza" },
+    });
+    await new Promise((r) => setTimeout(r, 450));
+    expect(select.value).toBe("formal");
+  });
+});
