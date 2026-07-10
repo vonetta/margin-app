@@ -4,6 +4,13 @@ import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { clickableDivProps } from "../utils/a11y";
 
+const NOTIFICATION_ICONS = {
+  task_assigned: "📋",
+  event_pending_approval: "📅",
+  task_due_soon: "⏰",
+  task_overdue: "⚠️",
+};
+
 const timeAgo = (dateStr) => {
   const diffMs = Date.now() - new Date(dateStr).getTime();
   const mins = Math.round(diffMs / 60000);
@@ -183,6 +190,7 @@ const NotificationBell = () => {
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
                 <div style={{ fontSize: "12px", fontWeight: n.read ? "400" : "600", color: "var(--charcoal)" }}>
+                  {NOTIFICATION_ICONS[n.type] ? `${NOTIFICATION_ICONS[n.type]} ` : ""}
                   {n.title}
                 </div>
                 {!n.read && (
