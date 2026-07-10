@@ -310,6 +310,47 @@ const Tasks = () => {
     }
   };
 
+  const handleHold = async (task) => {
+    try {
+      await client.put(
+        `/api/tasks/${task._id}/hold`,
+        {},
+        { headers: { "x-ministry-id": task.ministry_id } },
+      );
+      await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
+    } catch (err) {
+      setError("Failed to put this task on hold");
+    }
+  };
+
+  // Removing a co-assignee from a shared task is just deleting their own
+  // row, the same as the board's handleRemoveFromBoard — no confirmation
+  // step, matching that same lower-stakes precedent (unlike deleting
+  // your OWN task, which does confirm).
+  const handleRemoveSibling = async (siblingTaskId, ministryId) => {
+    try {
+      await client.delete(`/api/tasks/${siblingTaskId}`, {
+        headers: { "x-ministry-id": ministryId },
+      });
+      await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
+    } catch (err) {
+      setError("Failed to remove that person from the task");
+    }
+  };
+
+  const handleAddAssignee = async (task, userId) => {
+    try {
+      await client.post(
+        `/api/tasks/${task._id}/assignees`,
+        { user_id: userId },
+        { headers: { "x-ministry-id": task.ministry_id } },
+      );
+      await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to add that person to this task");
+    }
+  };
+
   const handleReopen = async (task) => {
     try {
       await client.put(`/api/tasks/${task._id}/reopen`, null, {
@@ -334,7 +375,11 @@ const Tasks = () => {
     }
   };
 
-  const visibleMine = myTasks.filter((t) => (showDone ? true : t.status === "open"));
+  // On-hold is still active work (blocked, not finished) — it stays
+  // visible by default alongside "open," matching the "active" (open +
+  // on_hold) semantic already used by the team-overview board. Only
+  // "done" is hidden until the checkbox reveals it.
+  const visibleMine = myTasks.filter((t) => (showDone ? true : t.status !== "done"));
   const openCount = myTasks.filter((t) => t.status === "open").length;
 
   // Dropping (or picking from the keyboard-alternative select) a card
@@ -480,6 +525,61 @@ const Tasks = () => {
           }}
         />
       </div>
+      {(task.siblings?.length > 0 || team.length > 0) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
+          {task.siblings?.map((s) => (
+            <span
+              key={s.task_id}
+              style={{
+                fontSize: "10px",
+                padding: "3px 8px",
+                borderRadius: "10px",
+                background: "var(--gray-200)",
+                color: "var(--gray-600)",
+              }}
+            >
+              {s.status === "done" ? "✓ " : s.status === "on_hold" ? "⏸ " : ""}
+              {s.name}
+              <span
+                {...clickableDivProps(() => handleRemoveSibling(s.task_id, task.ministry_id))}
+                aria-label={`Remove ${s.name} from "${task.title}"`}
+                style={{ marginLeft: "4px", cursor: "pointer" }}
+              >
+                ×
+              </span>
+            </span>
+          ))}
+          <select
+            aria-label={`Add someone else to "${task.title}"`}
+            defaultValue=""
+            onChange={(e) => {
+              if (e.target.value) handleAddAssignee(task, e.target.value);
+              e.target.value = "";
+            }}
+            style={{
+              fontSize: "11px",
+              padding: "4px 8px",
+              border: "0.5px solid var(--gray-300)",
+              borderRadius: "6px",
+              color: "var(--gray-600)",
+              background: "var(--white)",
+            }}
+          >
+            <option value="">+ Add someone</option>
+            {team
+              .filter(
+                (m) =>
+                  m._id !== task.assigned_to &&
+                  !(task.siblings || []).some((s) => s.user_id === m._id),
+              )
+              .map((m) => (
+                <option key={m._id} value={m._id}>
+                  {m.name}
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
         <select
           aria-label="Repeat frequency"
@@ -609,54 +709,117 @@ const Tasks = () => {
             {showAssignee && (
               <span>{due || task.recurrence_rule ? " · " : ""}{team.find((m) => m._id === task.assigned_to)?.name || "Someone"}</span>
             )}
+            {task.status === "on_hold" && (
+              <span
+                title={task.hold_reason || "On hold"}
+                style={{
+                  marginLeft: "6px",
+                  fontSize: "9px",
+                  fontWeight: "600",
+                  padding: "2px 6px",
+                  borderRadius: "10px",
+                  color: "#8a6200",
+                  background: "#fff6df",
+                }}
+              >
+                ⏸ On hold
+              </span>
+            )}
           </div>
+          {task.siblings?.length > 0 && (
+            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "6px" }}>
+              {task.siblings.map((s) => (
+                <span
+                  key={s.task_id}
+                  style={{
+                    fontSize: "9px",
+                    padding: "2px 6px",
+                    borderRadius: "10px",
+                    background: "var(--gray-200)",
+                    color: "var(--gray-600)",
+                  }}
+                >
+                  {s.status === "done" ? "✓ " : s.status === "on_hold" ? "⏸ " : ""}
+                  {s.name}
+                  <span
+                    {...clickableDivProps((e) => {
+                      e?.stopPropagation?.();
+                      handleRemoveSibling(s.task_id, task.ministry_id);
+                    })}
+                    aria-label={`Remove ${s.name} from "${task.title}"`}
+                    style={{ marginLeft: "4px", cursor: "pointer" }}
+                  >
+                    ×
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-        <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-          <button
-            onClick={() => startEdit(task)}
-            style={{
-              padding: "5px 10px",
-              background: "transparent",
-              color: "var(--navy)",
-              border: "0.5px solid var(--navy)",
-              borderRadius: "var(--border-radius)",
-              fontSize: "11px",
-              cursor: "pointer",
-            }}
-          >
-            Edit
-          </button>
-          {task.status === "open" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", flexShrink: 0, alignItems: "flex-end" }}>
+          <div style={{ display: "flex", gap: "6px" }}>
             <button
-              onClick={() => handleComplete(task)}
-              style={{
-                padding: "5px 10px",
-                background: "var(--navy)",
-                color: "var(--white)",
-                border: "none",
-                borderRadius: "var(--border-radius)",
-                fontSize: "11px",
-                cursor: "pointer",
-              }}
-            >
-              ✓ Done
-            </button>
-          ) : (
-            <button
-              onClick={() => handleReopen(task)}
+              onClick={() => startEdit(task)}
               style={{
                 padding: "5px 10px",
                 background: "transparent",
-                color: "var(--gray-600)",
-                border: "0.5px solid var(--gray-300)",
+                color: "var(--navy)",
+                border: "0.5px solid var(--navy)",
                 borderRadius: "var(--border-radius)",
                 fontSize: "11px",
                 cursor: "pointer",
               }}
             >
-              Reopen
+              Edit
             </button>
-          )}
+            {task.status !== "done" && (
+              <button
+                onClick={() => handleComplete(task)}
+                style={{
+                  padding: "5px 10px",
+                  background: "var(--navy)",
+                  color: "var(--white)",
+                  border: "none",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                }}
+              >
+                ✓ Done
+              </button>
+            )}
+            {task.status === "open" && (
+              <button
+                onClick={() => handleHold(task)}
+                style={{
+                  padding: "5px 10px",
+                  background: "transparent",
+                  color: "var(--gray-600)",
+                  border: "0.5px solid var(--gray-300)",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                }}
+              >
+                ⏸ Hold
+              </button>
+            )}
+            {task.status !== "open" && (
+              <button
+                onClick={() => handleReopen(task)}
+                style={{
+                  padding: "5px 10px",
+                  background: "transparent",
+                  color: "var(--gray-600)",
+                  border: "0.5px solid var(--gray-300)",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                }}
+              >
+                {task.status === "on_hold" ? "▶ Resume" : "Reopen"}
+              </button>
+            )}
           {confirmDeleteId === task._id ? (
             <>
               <button
@@ -704,6 +867,36 @@ const Tasks = () => {
               ✕
             </button>
           )}
+          </div>
+          <select
+            aria-label={`Add someone else to "${task.title}"`}
+            defaultValue=""
+            onChange={(e) => {
+              if (e.target.value) handleAddAssignee(task, e.target.value);
+              e.target.value = "";
+            }}
+            style={{
+              fontSize: "10px",
+              padding: "3px 6px",
+              border: "0.5px solid var(--gray-300)",
+              borderRadius: "6px",
+              color: "var(--gray-600)",
+              background: "var(--white)",
+            }}
+          >
+            <option value="">+ Add someone</option>
+            {team
+              .filter(
+                (m) =>
+                  m._id !== task.assigned_to &&
+                  !(task.siblings || []).some((s) => s.user_id === m._id),
+              )
+              .map((m) => (
+                <option key={m._id} value={m._id}>
+                  {m.name}
+                </option>
+              ))}
+          </select>
         </div>
       </div>
     );
@@ -1039,6 +1232,7 @@ const Tasks = () => {
           <div style={{ display: "flex", gap: "4px" }}>
             {[
               { key: "active", label: "Open" },
+              { key: "on_hold", label: "On hold" },
               { key: "all", label: "Open + completed" },
             ].map((s) => (
               <button

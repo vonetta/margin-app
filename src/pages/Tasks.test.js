@@ -111,6 +111,118 @@ test("marking a task complete calls the complete endpoint with the right ministr
   );
 });
 
+test("putting a task on hold from the list view calls the hold endpoint, and shows an on-hold badge + Resume button", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [{ _id: "t1", title: "Do the thing", status: "open", ministry_id: "ktm-test" }],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<Tasks />);
+  fireEvent.click(await screen.findByText("⏸ Hold"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/tasks/t1/hold",
+      {},
+      expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
+    ),
+  );
+});
+
+test("an on-hold task in the list view shows a badge and a Resume button instead of Hold", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "t1",
+            title: "Blocked task",
+            status: "on_hold",
+            hold_reason: "Waiting on the vendor",
+            ministry_id: "ktm-test",
+          },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<Tasks />);
+  expect(await screen.findByText("⏸ On hold")).toBeInTheDocument();
+  expect(screen.getByText("▶ Resume")).toBeInTheDocument();
+  expect(screen.queryByText("⏸ Hold")).not.toBeInTheDocument();
+});
+
+test("a shared task shows co-assignee chips outside the board, with a working remove control", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "t1",
+            title: "Shared setup",
+            status: "open",
+            ministry_id: "ktm-test",
+            group_id: "g1",
+            siblings: [{ task_id: "t2", user_id: "u2", name: "Tina Team", status: "open" }],
+          },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.delete.mockResolvedValue({ data: { deleted: true } });
+
+  render(<Tasks />);
+  expect(await screen.findByText("Tina Team")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByLabelText('Remove Tina Team from "Shared setup"'));
+
+  await waitFor(() =>
+    expect(client.delete).toHaveBeenCalledWith(
+      "/api/tasks/t2",
+      expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
+    ),
+  );
+});
+
+test("adding someone from the list view's own select calls the assignees endpoint", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [{ _id: "t1", title: "Solo task", status: "open", ministry_id: "ktm-test", assigned_to: "u1" }],
+      });
+    }
+    if (url === "/api/ministry/team") {
+      return Promise.resolve({
+        data: [
+          { _id: "u1", name: "Alex Admin", role: "admin" },
+          { _id: "u2", name: "Tina Team", role: "team" },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.post.mockResolvedValue({ data: {} });
+
+  render(<Tasks />);
+  const select = await screen.findByLabelText('Add someone else to "Solo task"');
+  userEvent.selectOptions(select, ["u2"]);
+
+  await waitFor(() =>
+    expect(client.post).toHaveBeenCalledWith(
+      "/api/tasks/t1/assignees",
+      { user_id: "u2" },
+      expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
+    ),
+  );
+});
+
 test("clicking a task opens an edit form pre-filled with its current details", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/tasks") {
