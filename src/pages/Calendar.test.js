@@ -120,6 +120,130 @@ test("approving a pending event from the queue calls the approve endpoint", asyn
   );
 });
 
+test("approving a pending event shows the suggested-tasks review panel", async () => {
+  client.get.mockImplementation((url, opts) => {
+    if (url === "/api/events" && opts?.params?.status === "pending") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "evt-pending",
+            title: "Worship Intensive",
+            start: "2026-08-15T17:00:00Z",
+            source: "flyer",
+            ministry_id: "ktm-test",
+          },
+        ],
+      });
+    }
+    if (url === "/api/events/expanded") return Promise.resolve({ data: [] });
+    if (url === "/api/events/evt-pending/suggested-tasks") {
+      return Promise.resolve({
+        data: [
+          { title: "Day-of setup for Worship Intensive", description: "Prep the space.", due_date: "2026-08-15T17:00:00Z" },
+          { title: "Thank-you / debrief for Worship Intensive", description: "Send thank-yous.", due_date: "2026-08-17T17:00:00Z" },
+        ],
+      });
+    }
+    if (url === "/api/ministry/team") {
+      return Promise.resolve({
+        data: [
+          { _id: "u1", name: "Alex Admin", role: "admin" },
+          { _id: "u2", name: "Tina Team", role: "team" },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+  client.post.mockResolvedValue({ data: {} });
+
+  render(<Calendar />);
+  fireEvent.click(await screen.findByText(/Approval queue/));
+  fireEvent.click(await screen.findByText("Approve"));
+
+  expect(await screen.findByText("Suggested tasks for this event")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("Day-of setup for Worship Intensive")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("Thank-you / debrief for Worship Intensive")).toBeInTheDocument();
+});
+
+test("suggested-tasks panel requires an assignee before creating a checked row", async () => {
+  client.get.mockImplementation((url, opts) => {
+    if (url === "/api/events" && opts?.params?.status === "pending") {
+      return Promise.resolve({
+        data: [{ _id: "evt-pending", title: "Worship Intensive", start: "2026-08-15T17:00:00Z", ministry_id: "ktm-test" }],
+      });
+    }
+    if (url === "/api/events/expanded") return Promise.resolve({ data: [] });
+    if (url === "/api/events/evt-pending/suggested-tasks") {
+      return Promise.resolve({
+        data: [{ title: "Day-of setup for Worship Intensive", due_date: "2026-08-15T17:00:00Z" }],
+      });
+    }
+    if (url === "/api/ministry/team") {
+      return Promise.resolve({ data: [{ _id: "u1", name: "Alex Admin", role: "admin" }] });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<Calendar />);
+  fireEvent.click(await screen.findByText(/Approval queue/));
+  fireEvent.click(await screen.findByText("Approve"));
+  await screen.findByText("Suggested tasks for this event");
+
+  fireEvent.click(screen.getByText("Create tasks"));
+
+  expect(await screen.findByText(/Pick an assignee/)).toBeInTheDocument();
+  expect(client.post).not.toHaveBeenCalled();
+});
+
+test("suggested-tasks panel creates only the checked, assigned rows", async () => {
+  client.get.mockImplementation((url, opts) => {
+    if (url === "/api/events" && opts?.params?.status === "pending") {
+      return Promise.resolve({
+        data: [{ _id: "evt-pending", title: "Worship Intensive", start: "2026-08-15T17:00:00Z", ministry_id: "ktm-test" }],
+      });
+    }
+    if (url === "/api/events/expanded") return Promise.resolve({ data: [] });
+    if (url === "/api/events/evt-pending/suggested-tasks") {
+      return Promise.resolve({
+        data: [
+          { title: "Day-of setup for Worship Intensive", due_date: "2026-08-15T17:00:00Z" },
+          { title: "Thank-you / debrief for Worship Intensive", due_date: "2026-08-17T17:00:00Z" },
+        ],
+      });
+    }
+    if (url === "/api/ministry/team") {
+      return Promise.resolve({ data: [{ _id: "u1", name: "Alex Admin", role: "admin" }] });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+  client.post.mockResolvedValue({ data: {} });
+
+  render(<Calendar />);
+  fireEvent.click(await screen.findByText(/Approval queue/));
+  fireEvent.click(await screen.findByText("Approve"));
+  await screen.findByText("Suggested tasks for this event");
+
+  // Uncheck the second (thank-you) row, assign the first.
+  const checkboxes = screen.getAllByRole("checkbox");
+  fireEvent.click(checkboxes[1]);
+  const selects = screen.getAllByRole("combobox");
+  fireEvent.change(selects[0], { target: { value: "u1" } });
+
+  fireEvent.click(screen.getByText("Create tasks"));
+
+  await waitFor(() =>
+    expect(client.post).toHaveBeenCalledWith(
+      "/api/tasks",
+      expect.objectContaining({ title: "Day-of setup for Worship Intensive", assigned_to: "u1" }),
+      expect.anything(),
+    ),
+  );
+  expect(client.post).toHaveBeenCalledTimes(1);
+});
+
 test("restricting an internal event to specific team members sends their ids as visible_to", async () => {
   client.post.mockResolvedValue({ data: { _id: "e1" } });
   render(<Calendar />);

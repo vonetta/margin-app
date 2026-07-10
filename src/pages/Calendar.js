@@ -392,8 +392,53 @@ const Calendar = () => {
     try {
       await client.put(`/api/events/${id}/approve`, null, { headers: { "x-ministry-id": mId } });
       await Promise.all([fetchPending(), fetchOccurrences()]);
+      const res = await client.get(`/api/events/${id}/suggested-tasks`, {
+        headers: { "x-ministry-id": mId },
+      });
+      setSuggestionPanel({
+        eventId: id,
+        ministryId: mId,
+        rows: (res.data || []).map((s) => ({ ...s, assignee: "", include: true })),
+      });
     } catch (err) {
       setError("Failed to approve event");
+    }
+  };
+
+  const [suggestionPanel, setSuggestionPanel] = useState(null);
+
+  const updateSuggestionRow = (index, patch) => {
+    setSuggestionPanel((panel) => ({
+      ...panel,
+      rows: panel.rows.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    }));
+  };
+
+  const handleCreateSuggestedTasks = async () => {
+    const rowsToCreate = suggestionPanel.rows.filter((r) => r.include);
+    if (rowsToCreate.some((r) => !r.assignee)) {
+      setError("Pick an assignee for every task you want to create, or uncheck it");
+      return;
+    }
+    try {
+      await Promise.all(
+        rowsToCreate.map((r) =>
+          client.post(
+            "/api/tasks",
+            {
+              title: r.title,
+              description: r.description || undefined,
+              due_date: r.due_date ? new Date(r.due_date).toISOString() : undefined,
+              assigned_to: r.assignee,
+            },
+            { headers: { "x-ministry-id": suggestionPanel.ministryId } },
+          ),
+        ),
+      );
+      setSuggestionPanel(null);
+      await fetchTasks();
+    } catch (err) {
+      setError("Failed to create suggested tasks");
     }
   };
 
@@ -1229,6 +1274,121 @@ const Calendar = () => {
             >
               {feedCopied ? "Copied!" : "Copy link"}
             </button>
+          </div>
+        </div>
+      )}
+
+      {suggestionPanel && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+          }}
+        >
+          <div
+            style={{
+              background: "var(--white)",
+              borderRadius: "var(--border-radius-lg)",
+              padding: "24px",
+              width: "480px",
+              maxWidth: "90vw",
+              maxHeight: "80vh",
+              overflow: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: "14px",
+            }}
+          >
+            <div style={{ fontFamily: "Cinzel, serif", fontSize: "12px", color: "var(--navy)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              Suggested tasks for this event
+            </div>
+            <div style={{ fontSize: "11px", color: "var(--gray-500)" }}>
+              Review, assign, and uncheck anything you don't want created.
+            </div>
+            {suggestionPanel.rows.map((row, i) => (
+              <div
+                key={i}
+                style={{
+                  border: "0.5px solid var(--gray-300)",
+                  borderRadius: "var(--border-radius)",
+                  padding: "12px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                  opacity: row.include ? 1 : 0.5,
+                }}
+              >
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
+                  <input
+                    type="checkbox"
+                    checked={row.include}
+                    onChange={(e) => updateSuggestionRow(i, { include: e.target.checked })}
+                  />
+                  <input
+                    type="text"
+                    value={row.title}
+                    onChange={(e) => updateSuggestionRow(i, { title: e.target.value })}
+                    style={{ flex: 1, padding: "4px 6px", border: "0.5px solid var(--gray-300)", borderRadius: "4px", fontSize: "12px" }}
+                  />
+                </label>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    type="date"
+                    value={row.due_date ? new Date(row.due_date).toISOString().slice(0, 10) : ""}
+                    onChange={(e) => updateSuggestionRow(i, { due_date: e.target.value })}
+                    style={{ padding: "4px 6px", border: "0.5px solid var(--gray-300)", borderRadius: "4px", fontSize: "12px" }}
+                  />
+                  <select
+                    value={row.assignee}
+                    onChange={(e) => updateSuggestionRow(i, { assignee: e.target.value })}
+                    style={{ flex: 1, padding: "4px 6px", border: "0.5px solid var(--gray-300)", borderRadius: "4px", fontSize: "12px" }}
+                  >
+                    <option value="">Assign to...</option>
+                    {team.map((member) => (
+                      <option key={member._id} value={member._id}>
+                        {member.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ))}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button
+                onClick={() => setSuggestionPanel(null)}
+                style={{
+                  padding: "8px 16px",
+                  background: "transparent",
+                  color: "var(--gray-600)",
+                  border: "0.5px solid var(--gray-300)",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                }}
+              >
+                Skip
+              </button>
+              <button
+                onClick={handleCreateSuggestedTasks}
+                style={{
+                  padding: "8px 16px",
+                  background: "var(--navy)",
+                  color: "var(--white)",
+                  border: "none",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "12px",
+                  fontWeight: "500",
+                  cursor: "pointer",
+                }}
+              >
+                Create tasks
+              </button>
+            </div>
           </div>
         </div>
       )}
