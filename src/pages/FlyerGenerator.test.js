@@ -39,6 +39,49 @@ test("shows recent flyers fetched from the history endpoint", async () => {
   expect(await screen.findByText("Worship Intensive")).toBeInTheDocument();
 });
 
+test("clicking Edit on a recent flyer restores its content into the form, leaving date/time/rsvp_by blank", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/people") return Promise.resolve({ data: [] });
+    if (url === "/api/flyers/layouts") return Promise.resolve({ data: [] });
+    if (url === "/api/flyers") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "f1",
+            title: "Pizza Party",
+            subtitle: "Slimey yet satisfying",
+            layout: "monument",
+            engine: "ai",
+            social_url: "https://example.com/f1.png",
+            created_at: "2026-06-01T00:00:00Z",
+            content: {
+              title: "Pizza Party",
+              subtitle: "Slimey yet satisfying",
+              location: "123 Main St, Los Angeles, CA",
+              cost: "$5",
+              contact: "Vonetta 211-232-4356",
+              date: "Saturday, July 18, 2026, 5:30 – 8:00 PM",
+              rsvp_by: "Friday, July 17, 2026",
+              theme_tags: ["kids", "fun"],
+              highlights: ["Free pizza", "Games"],
+            },
+          },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<FlyerGenerator />);
+  fireEvent.click(await screen.findByText("✎ Edit"));
+
+  expect(screen.getByPlaceholderText("Worship Workshop")).toHaveValue("Pizza Party");
+  expect(screen.getByPlaceholderText("123 Main St, Atlanta GA")).toHaveValue("123 Main St, Los Angeles, CA");
+  expect(screen.getByLabelText("Event date")).toHaveValue("");
+  expect(screen.getByLabelText("RSVP by date")).toHaveValue("");
+  expect(await screen.findByText(/weren't saved in a re-editable/)).toBeInTheDocument();
+});
+
 test("shows an empty state when there is no flyer history", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/flyers") return Promise.resolve({ data: [] });

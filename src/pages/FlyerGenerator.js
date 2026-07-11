@@ -123,6 +123,7 @@ const FlyerGenerator = () => {
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [editNotice, setEditNotice] = useState(false);
 
   const [showPostForm, setShowPostForm] = useState(false);
   const [postCaption, setPostCaption] = useState("");
@@ -359,6 +360,43 @@ const FlyerGenerator = () => {
     }
   };
 
+  // Regenerating from history always creates a new flyer (there's no
+  // in-place edit endpoint) — this just pre-fills the form from a past
+  // flyer's stored content. date/time/rsvp_by can't be restored: only
+  // their already-formatted display strings ("Saturday, July 18, 2026,
+  // 5:30 – 8:00 PM") got saved, not the raw picker values, so those
+  // three are left blank for the user to re-enter.
+  const handleEditFlyer = (f) => {
+    const c = f.content || {};
+    setForm({
+      title: c.title || "",
+      subtitle: c.subtitle || "",
+      kicker: c.kicker || "",
+      date: "",
+      time: "",
+      end_time: "",
+      location: c.location || "",
+      cost: c.cost || "",
+      rsvp_by: "",
+      cta: c.cta || "",
+      contact: c.contact || "",
+      qr_url: f.qr_url || "",
+      description: c.description || "",
+      audience: c.audience || "",
+      theme_tags: Array.isArray(c.theme_tags) ? c.theme_tags.join(", ") : "",
+      highlights: Array.isArray(c.highlights) ? c.highlights.join("\n") : "",
+    });
+    setHostId(f.host_id || "");
+    setSpeakerIds(f.speaker_ids || []);
+    setSelectedLayout(f.layout || "auto");
+    setEngine(f.engine || "template");
+    setTone(f.tone || "");
+    setToneTouched(!!f.tone);
+    setFlyer(null);
+    setEditNotice(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const hostCandidates = people.filter((p) => p.role !== "speaker" || p._id === hostId);
   const speakerCandidates = people.filter((p) => p._id !== hostId);
 
@@ -463,6 +501,22 @@ const FlyerGenerator = () => {
               </div>
             )}
 
+            {editNotice && (
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "var(--gray-600)",
+                  background: "var(--gray-100)",
+                  border: "0.5px solid var(--gray-300)",
+                  borderRadius: "var(--border-radius)",
+                  padding: "8px 12px",
+                }}
+              >
+                Loaded from a previous flyer — date, start/end time, and RSVP by weren't saved in a re-editable
+                form, so please re-enter them.
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: "12px" }}>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Date</label>
@@ -471,7 +525,10 @@ const FlyerGenerator = () => {
                   aria-label="Event date"
                   style={inputStyle}
                   value={form.date}
-                  onChange={handleChange("date")}
+                  onChange={(e) => {
+                    setEditNotice(false);
+                    handleChange("date")(e);
+                  }}
                 />
               </div>
               <div style={{ flex: 1 }}>
@@ -1130,20 +1187,37 @@ const FlyerGenerator = () => {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => setConfirmDeleteId(f._id)}
-                    style={{
-                      padding: "5px 8px",
-                      background: "transparent",
-                      color: "#c0504d",
-                      border: "0.5px solid #e8b4b4",
-                      borderRadius: "var(--border-radius)",
-                      fontSize: "10px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    ✕ Delete
-                  </button>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button
+                      onClick={() => handleEditFlyer(f)}
+                      style={{
+                        flex: 1,
+                        padding: "5px 8px",
+                        background: "transparent",
+                        color: "var(--navy)",
+                        border: "0.5px solid var(--navy)",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "10px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      ✎ Edit
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(f._id)}
+                      style={{
+                        padding: "5px 8px",
+                        background: "transparent",
+                        color: "#c0504d",
+                        border: "0.5px solid #e8b4b4",
+                        borderRadius: "var(--border-radius)",
+                        fontSize: "10px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      ✕ Delete
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
