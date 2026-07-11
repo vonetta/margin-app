@@ -82,6 +82,25 @@ test("clicking Edit on a recent flyer restores its content into the form, leavin
   expect(await screen.findByText(/weren't saved in a re-editable/)).toBeInTheDocument();
 });
 
+test("blocks generation without a date, including after editing a past flyer that had one stripped", async () => {
+  client.post.mockImplementation((url) => {
+    if (url === "/api/flyers/generate") return Promise.resolve({ data: {} });
+    return Promise.resolve({ data: {} });
+  });
+
+  render(<FlyerGenerator />);
+  await screen.findByText("Worship Intensive");
+
+  fireEvent.change(screen.getByPlaceholderText("Worship Workshop"), { target: { value: "New Flyer" } });
+  expect(screen.getByText(/Generate flyer/)).toBeDisabled();
+
+  fireEvent.click(await screen.findByText("✎ Edit"));
+  expect(screen.getByLabelText("Event date")).toHaveValue("");
+  expect(screen.getByText(/Generate flyer/)).toBeDisabled();
+
+  expect(client.post).not.toHaveBeenCalledWith("/api/flyers/generate", expect.anything());
+});
+
 test("shows an empty state when there is no flyer history", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/flyers") return Promise.resolve({ data: [] });
@@ -111,6 +130,7 @@ test("preparing a social post from a generated flyer sends the caption and graph
   await screen.findByText("Worship Intensive");
 
   fireEvent.change(screen.getByPlaceholderText("Worship Workshop"), { target: { value: "New Flyer" } });
+  fireEvent.change(screen.getByLabelText("Event date"), { target: { value: "2026-08-15" } });
   fireEvent.click(screen.getByText(/Generate flyer/));
 
   fireEvent.click(await screen.findByText("⌘ Post to social"));
@@ -226,6 +246,7 @@ describe("tone suggestion (manual entry)", () => {
     const select = await screen.findByLabelText("Tone");
     await waitFor(() => expect(select.value).toBe("energetic"));
 
+    fireEvent.change(screen.getByLabelText("Event date"), { target: { value: "2026-08-15" } });
     fireEvent.click(screen.getByText(/Generate flyer/));
 
     await waitFor(() =>
@@ -290,6 +311,7 @@ describe("description, audience, theme tags, and highlights (Tier 0 fields)", ()
       screen.getByPlaceholderText(/Hands-on prophetic activation/),
       { target: { value: "Hands-on prophetic activation\n\nTime for personal ministry" } },
     );
+    fireEvent.change(screen.getByLabelText("Event date"), { target: { value: "2026-08-15" } });
     fireEvent.click(screen.getByText(/Generate flyer/));
 
     await waitFor(() =>
@@ -318,6 +340,7 @@ describe("description, audience, theme tags, and highlights (Tier 0 fields)", ()
     await screen.findByText("Worship Intensive");
 
     fireEvent.change(screen.getByPlaceholderText("Worship Workshop"), { target: { value: "New Flyer" } });
+    fireEvent.change(screen.getByLabelText("Event date"), { target: { value: "2026-08-15" } });
     fireEvent.click(screen.getByText(/Generate flyer/));
 
     await waitFor(() =>
@@ -355,6 +378,7 @@ describe("kicker, time/end_time, rsvp_by, and contact (Tier 1 fields)", () => {
     fireEvent.change(screen.getByPlaceholderText("Questions? Text Sarah at 555-1234"), {
       target: { value: "Questions? Text Sarah at 555-1234" },
     });
+    fireEvent.change(screen.getByLabelText("Event date"), { target: { value: "2026-08-15" } });
     fireEvent.click(screen.getByText(/Generate flyer/));
 
     await waitFor(() =>
@@ -384,6 +408,7 @@ describe("kicker, time/end_time, rsvp_by, and contact (Tier 1 fields)", () => {
     await screen.findByText("Worship Intensive");
 
     fireEvent.change(screen.getByPlaceholderText("Worship Workshop"), { target: { value: "New Flyer" } });
+    fireEvent.change(screen.getByLabelText("Event date"), { target: { value: "2026-08-15" } });
     fireEvent.click(screen.getByText(/Generate flyer/));
 
     await waitFor(() =>

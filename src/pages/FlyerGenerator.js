@@ -290,6 +290,10 @@ const FlyerGenerator = () => {
 
   const handleGenerate = async () => {
     if (!form.title.trim()) return;
+    if (!form.date) {
+      setError("Add a date before generating — this is easy to miss after loading a past flyer for editing, since date/time aren't restored.");
+      return;
+    }
     setGenerating(true);
     setError("");
     try {
@@ -519,7 +523,7 @@ const FlyerGenerator = () => {
 
             <div style={{ display: "flex", gap: "12px" }}>
               <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Date</label>
+                <label style={labelStyle}>Date (required)</label>
                 <input
                   type="date"
                   aria-label="Event date"
@@ -883,11 +887,11 @@ const FlyerGenerator = () => {
 
           <button
             onClick={handleGenerate}
-            disabled={generating || !form.title.trim()}
+            disabled={generating || !form.title.trim() || !form.date}
             style={{
               padding: "10px 16px",
               background:
-                generating || !form.title.trim() ? "var(--gray-400)" : "var(--navy)",
+                generating || !form.title.trim() || !form.date ? "var(--gray-400)" : "var(--navy)",
               color: "var(--white)",
               border: "none",
               borderRadius: "var(--border-radius)",
