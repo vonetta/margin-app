@@ -39,7 +39,7 @@ test("shows recent flyers fetched from the history endpoint", async () => {
   expect(await screen.findByText("Worship Intensive")).toBeInTheDocument();
 });
 
-test("clicking Edit on a recent flyer restores its content into the form, leaving date/time/rsvp_by blank", async () => {
+test("clicking Edit on a legacy flyer (no raw date fields) restores its content into the form, leaving date/time/rsvp_by blank", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/people") return Promise.resolve({ data: [] });
     if (url === "/api/flyers/layouts") return Promise.resolve({ data: [] });
@@ -80,6 +80,46 @@ test("clicking Edit on a recent flyer restores its content into the form, leavin
   expect(screen.getByLabelText("Event date")).toHaveValue("");
   expect(screen.getByLabelText("RSVP by date")).toHaveValue("");
   expect(await screen.findByText(/weren't saved in a re-editable/)).toBeInTheDocument();
+});
+
+test("clicking Edit on a flyer with raw date fields restores date/time/rsvp_by and shows the double-check reminder", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/people") return Promise.resolve({ data: [] });
+    if (url === "/api/flyers/layouts") return Promise.resolve({ data: [] });
+    if (url === "/api/flyers") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "f1",
+            title: "Pizza Party",
+            layout: "monument",
+            engine: "ai",
+            social_url: "https://example.com/f1.png",
+            created_at: "2026-06-01T00:00:00Z",
+            content: {
+              title: "Pizza Party",
+              date: "Saturday, July 18, 2026, 5:30 – 8:00 PM",
+              date_raw: "2026-07-18",
+              time_raw: "17:30",
+              end_time_raw: "20:00",
+              rsvp_by: "Friday, July 17, 2026",
+              rsvp_by_raw: "2026-07-17",
+            },
+          },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<FlyerGenerator />);
+  fireEvent.click(await screen.findByText("✎ Edit"));
+
+  expect(screen.getByLabelText("Event date")).toHaveValue("2026-07-18");
+  expect(screen.getByLabelText("Event start time")).toHaveValue("17:30");
+  expect(screen.getByLabelText("Event end time")).toHaveValue("20:00");
+  expect(screen.getByLabelText("RSVP by date")).toHaveValue("2026-07-17");
+  expect(await screen.findByText(/double-check the date and time/)).toBeInTheDocument();
 });
 
 test("blocks generation without a date, including after editing a past flyer that had one stripped", async () => {

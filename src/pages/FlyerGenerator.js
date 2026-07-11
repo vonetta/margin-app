@@ -123,7 +123,11 @@ const FlyerGenerator = () => {
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [editNotice, setEditNotice] = useState(false);
+  // null | "restored" (date/time came back from *_raw fields — just a
+  // reminder to double-check before regenerating) | "legacy" (no *_raw
+  // fields on this flyer, so date/time/rsvp_by are blank and need
+  // re-entering).
+  const [editNotice, setEditNotice] = useState(null);
 
   const [showPostForm, setShowPostForm] = useState(false);
   const [postCaption, setPostCaption] = useState("");
@@ -366,22 +370,26 @@ const FlyerGenerator = () => {
 
   // Regenerating from history always creates a new flyer (there's no
   // in-place edit endpoint) — this just pre-fills the form from a past
-  // flyer's stored content. date/time/rsvp_by can't be restored: only
-  // their already-formatted display strings ("Saturday, July 18, 2026,
-  // 5:30 – 8:00 PM") got saved, not the raw picker values, so those
-  // three are left blank for the user to re-enter.
+  // flyer's stored content. date/time/rsvp_by restore from *_raw fields
+  // (the exact picker values, saved alongside the formatted display
+  // strings since the raw-storage fix shipped) when present. A flyer
+  // generated before that fix — or one whose date/rsvp_by was free text
+  // that never matched a picker's shape to begin with — has no *_raw
+  // fields, so those inputs fall back to blank for manual re-entry, same
+  // as before.
   const handleEditFlyer = (f) => {
     const c = f.content || {};
+    const restoredDate = !!(c.date_raw || c.time_raw || c.rsvp_by_raw);
     setForm({
       title: c.title || "",
       subtitle: c.subtitle || "",
       kicker: c.kicker || "",
-      date: "",
-      time: "",
-      end_time: "",
+      date: c.date_raw || "",
+      time: c.time_raw || "",
+      end_time: c.end_time_raw || "",
       location: c.location || "",
       cost: c.cost || "",
-      rsvp_by: "",
+      rsvp_by: c.rsvp_by_raw || "",
       cta: c.cta || "",
       contact: c.contact || "",
       qr_url: f.qr_url || "",
@@ -397,7 +405,7 @@ const FlyerGenerator = () => {
     setTone(f.tone || "");
     setToneTouched(!!f.tone);
     setFlyer(null);
-    setEditNotice(true);
+    setEditNotice(restoredDate ? "restored" : "legacy");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -505,7 +513,21 @@ const FlyerGenerator = () => {
               </div>
             )}
 
-            {editNotice && (
+            {editNotice === "restored" && (
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "var(--gray-600)",
+                  background: "var(--gray-100)",
+                  border: "0.5px solid var(--gray-300)",
+                  borderRadius: "var(--border-radius)",
+                  padding: "8px 12px",
+                }}
+              >
+                Copied from a previous flyer — double-check the date and time before generating.
+              </div>
+            )}
+            {editNotice === "legacy" && (
               <div
                 style={{
                   fontSize: "11px",
@@ -530,7 +552,7 @@ const FlyerGenerator = () => {
                   style={inputStyle}
                   value={form.date}
                   onChange={(e) => {
-                    setEditNotice(false);
+                    setEditNotice(null);
                     handleChange("date")(e);
                   }}
                 />
