@@ -308,7 +308,7 @@ describe("kicker, time/end_time, rsvp_by, and contact (Tier 1 fields)", () => {
     fireEvent.change(screen.getByPlaceholderText("Renewed — Week 3"), { target: { value: "Renewed — Week 3" } });
     fireEvent.change(screen.getByLabelText("Event start time"), { target: { value: "17:00" } });
     fireEvent.change(screen.getByLabelText("Event end time"), { target: { value: "19:00" } });
-    fireEvent.change(screen.getByPlaceholderText("July 8"), { target: { value: "July 8" } });
+    fireEvent.change(screen.getByLabelText("RSVP by date"), { target: { value: "2026-07-08" } });
     fireEvent.change(screen.getByPlaceholderText("Questions? Text Sarah at 555-1234"), {
       target: { value: "Questions? Text Sarah at 555-1234" },
     });
@@ -321,7 +321,7 @@ describe("kicker, time/end_time, rsvp_by, and contact (Tier 1 fields)", () => {
           kicker: "Renewed — Week 3",
           time: "17:00",
           end_time: "19:00",
-          rsvp_by: "July 8",
+          rsvp_by: "2026-07-08",
           contact: "Questions? Text Sarah at 555-1234",
         }),
       ),

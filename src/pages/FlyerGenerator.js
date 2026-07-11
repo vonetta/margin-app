@@ -1,8 +1,30 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import client from "../api/client";
 import PageHeader from "../components/PageHeader";
 import { clickableDivProps } from "../utils/a11y";
+
+// Loads the Google Maps Places script at most once, however many times
+// this component mounts. Resolves to null (never rejects) when no API
+// key is configured — the location field falls back to a plain text
+// input rather than ever blocking flyer creation on this being set up.
+let googleMapsScriptPromise = null;
+const loadGoogleMapsScript = () => {
+  const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+  if (!apiKey) return Promise.resolve(null);
+  if (window.google?.maps?.places) return Promise.resolve(window.google);
+  if (!googleMapsScriptPromise) {
+    googleMapsScriptPromise = new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+      script.async = true;
+      script.onload = () => resolve(window.google || null);
+      script.onerror = () => resolve(null);
+      document.head.appendChild(script);
+    });
+  }
+  return googleMapsScriptPromise;
+};
 
 const labelStyle = {
   display: "block",
@@ -207,6 +229,27 @@ const FlyerGenerator = () => {
 
   const handleChange = (field) => (e) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
+
+  const locationInputRef = useRef(null);
+  useEffect(() => {
+    let autocomplete;
+    let listener;
+    loadGoogleMapsScript().then((google) => {
+      if (!google || !locationInputRef.current) return;
+      autocomplete = new google.maps.places.Autocomplete(locationInputRef.current, {
+        types: ["address"],
+      });
+      listener = autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+        if (place?.formatted_address) {
+          setForm((prev) => ({ ...prev, location: place.formatted_address }));
+        }
+      });
+    });
+    return () => {
+      if (listener) listener.remove();
+    };
+  }, []);
 
   const parseCommaList = (text) =>
     text
@@ -466,10 +509,11 @@ const FlyerGenerator = () => {
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>RSVP by (optional)</label>
                 <input
+                  type="date"
+                  aria-label="RSVP by date"
                   style={inputStyle}
                   value={form.rsvp_by}
                   onChange={handleChange("rsvp_by")}
-                  placeholder="July 8"
                 />
               </div>
             </div>
@@ -477,10 +521,12 @@ const FlyerGenerator = () => {
             <div>
               <label style={labelStyle}>Location</label>
               <input
+                ref={locationInputRef}
                 style={inputStyle}
                 value={form.location}
                 onChange={handleChange("location")}
                 placeholder="123 Main St, Atlanta GA"
+                autoComplete="off"
               />
             </div>
 
