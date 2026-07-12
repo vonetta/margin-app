@@ -77,26 +77,28 @@ const suggestLayout = (host, speakers, hasVenueImage) => {
   return "monument";
 };
 
+const emptyForm = {
+  title: "",
+  subtitle: "",
+  kicker: "",
+  date: "",
+  time: "",
+  end_time: "",
+  location: "",
+  cost: "",
+  rsvp_by: "",
+  cta: "",
+  contact: "",
+  qr_url: "",
+  description: "",
+  audience: "",
+  theme_tags: "",
+  highlights: "",
+};
+
 const FlyerGenerator = () => {
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    title: "",
-    subtitle: "",
-    kicker: "",
-    date: "",
-    time: "",
-    end_time: "",
-    location: "",
-    cost: "",
-    rsvp_by: "",
-    cta: "",
-    contact: "",
-    qr_url: "",
-    description: "",
-    audience: "",
-    theme_tags: "",
-    highlights: "",
-  });
+  const [form, setForm] = useState(emptyForm);
 
   const [people, setPeople] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(false);
@@ -128,6 +130,11 @@ const FlyerGenerator = () => {
   // fields on this flyer, so date/time/rsvp_by are blank and need
   // re-entering).
   const [editNotice, setEditNotice] = useState(null);
+  // The flyer being edited in place, or null when the form is building a
+  // brand-new flyer. Set by handleEditFlyer, cleared by handleCancelEdit
+  // or handleDeleteFlyer (deleting the flyer you're mid-edit on shouldn't
+  // leave the form pointed at a document that no longer exists).
+  const [editingFlyerId, setEditingFlyerId] = useState(null);
 
   const [showPostForm, setShowPostForm] = useState(false);
   const [postCaption, setPostCaption] = useState("");
@@ -301,7 +308,14 @@ const FlyerGenerator = () => {
     setGenerating(true);
     setError("");
     try {
-      const res = await client.post("/api/flyers/generate", buildPayload());
+      // Editing an existing flyer regenerates that same document in
+      // place (PUT) rather than always creating a new one (POST) — stays
+      // in edit mode afterward, so tweaking a couple more fields and
+      // hitting Generate again keeps updating the same flyer instead of
+      // silently spinning off a duplicate.
+      const res = editingFlyerId
+        ? await client.put(`/api/flyers/${editingFlyerId}/generate`, buildPayload())
+        : await client.post("/api/flyers/generate", buildPayload());
       setFlyer(res.data);
       setShowPostForm(false);
       setPostCreated(false);
@@ -362,24 +376,41 @@ const FlyerGenerator = () => {
       await client.delete(`/api/flyers/${id}`);
       setConfirmDeleteId(null);
       if (flyer?._id === id) setFlyer(null);
+      if (editingFlyerId === id) handleCancelEdit();
       await fetchHistory();
     } catch (err) {
       setError("Failed to delete flyer");
     }
   };
 
-  // Regenerating from history always creates a new flyer (there's no
-  // in-place edit endpoint) — this just pre-fills the form from a past
-  // flyer's stored content. date/time/rsvp_by restore from *_raw fields
-  // (the exact picker values, saved alongside the formatted display
-  // strings since the raw-storage fix shipped) when present. A flyer
-  // generated before that fix — or one whose date/rsvp_by was free text
-  // that never matched a picker's shape to begin with — has no *_raw
-  // fields, so those inputs fall back to blank for manual re-entry, same
-  // as before.
+  // Clears edit mode and resets the form — the "start a brand-new flyer"
+  // escape hatch. Without this there was no way to back out of editing
+  // an existing flyer once you'd loaded it.
+  const handleCancelEdit = () => {
+    setEditingFlyerId(null);
+    setForm(emptyForm);
+    setHostId("");
+    setSpeakerIds([]);
+    setSelectedLayout("auto");
+    setEngine("template");
+    setTone("");
+    setToneTouched(false);
+    setEditNotice(null);
+  };
+
+  // Regenerating from history now edits that same flyer in place (see
+  // handleGenerate's editingFlyerId branch) instead of always creating a
+  // new one — this pre-fills the form from the flyer's stored content.
+  // date/time/rsvp_by restore from *_raw fields (the exact picker
+  // values, saved alongside the formatted display strings since the
+  // raw-storage fix shipped) when present. A flyer generated before that
+  // fix — or one whose date/rsvp_by was free text that never matched a
+  // picker's shape to begin with — has no *_raw fields, so those inputs
+  // fall back to blank for manual re-entry, same as before.
   const handleEditFlyer = (f) => {
     const c = f.content || {};
     const restoredDate = !!(c.date_raw || c.time_raw || c.rsvp_by_raw);
+    setEditingFlyerId(f._id);
     setForm({
       title: c.title || "",
       subtitle: c.subtitle || "",
@@ -907,23 +938,47 @@ const FlyerGenerator = () => {
           </div>
           )}
 
-          <button
-            onClick={handleGenerate}
-            disabled={generating || !form.title.trim() || !form.date}
-            style={{
-              padding: "10px 16px",
-              background:
-                generating || !form.title.trim() || !form.date ? "var(--gray-400)" : "var(--navy)",
-              color: "var(--white)",
-              border: "none",
-              borderRadius: "var(--border-radius)",
-              fontSize: "12px",
-              fontWeight: "500",
-              letterSpacing: "0.04em",
-            }}
-          >
-            {generating ? "Generating..." : `✦ Generate flyer (${effectiveLayoutId})`}
-          </button>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <button
+              onClick={handleGenerate}
+              disabled={generating || !form.title.trim() || !form.date}
+              style={{
+                padding: "10px 16px",
+                background:
+                  generating || !form.title.trim() || !form.date ? "var(--gray-400)" : "var(--navy)",
+                color: "var(--white)",
+                border: "none",
+                borderRadius: "var(--border-radius)",
+                fontSize: "12px",
+                fontWeight: "500",
+                letterSpacing: "0.04em",
+              }}
+            >
+              {generating
+                ? editingFlyerId
+                  ? "Saving..."
+                  : "Generating..."
+                : editingFlyerId
+                  ? `✎ Save changes (${effectiveLayoutId})`
+                  : `✦ Generate flyer (${effectiveLayoutId})`}
+            </button>
+            {editingFlyerId && (
+              <button
+                onClick={handleCancelEdit}
+                disabled={generating}
+                style={{
+                  padding: "10px 16px",
+                  background: "transparent",
+                  color: "var(--gray-600)",
+                  border: "0.5px solid var(--gray-300)",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "12px",
+                }}
+              >
+                Cancel edit
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Preview */}

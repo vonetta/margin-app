@@ -4,6 +4,7 @@ import FlyerGenerator from "./FlyerGenerator";
 jest.mock("../api/client", () => ({
   get: jest.fn(),
   post: jest.fn(),
+  put: jest.fn(),
   delete: jest.fn(),
 }));
 const client = require("../api/client");
@@ -11,6 +12,7 @@ const client = require("../api/client");
 beforeEach(() => {
   client.get.mockReset();
   client.post.mockReset();
+  client.put.mockReset();
   client.delete.mockReset();
   client.get.mockImplementation((url) => {
     if (url === "/api/people") return Promise.resolve({ data: [] });
@@ -122,6 +124,84 @@ test("clicking Edit on a flyer with raw date fields restores date/time/rsvp_by a
   expect(await screen.findByText(/double-check the date and time/)).toBeInTheDocument();
 });
 
+test("saving changes to an edited flyer PUTs to the flyer's own regenerate endpoint, not POST /generate", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/people") return Promise.resolve({ data: [] });
+    if (url === "/api/flyers/layouts") return Promise.resolve({ data: [] });
+    if (url === "/api/flyers") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "f1",
+            title: "Pizza Party",
+            layout: "monument",
+            engine: "ai",
+            social_url: "https://example.com/f1.png",
+            created_at: "2026-06-01T00:00:00Z",
+            content: {
+              title: "Pizza Party",
+              date: "Saturday, July 18, 2026, 5:30 – 8:00 PM",
+              date_raw: "2026-07-18",
+            },
+          },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({
+    data: { _id: "f1", title: "Pizza Party (Updated)", layout: "monument", social_url: "https://example.com/f1-v2.png" },
+  });
+
+  render(<FlyerGenerator />);
+  fireEvent.click(await screen.findByText("✎ Edit"));
+
+  fireEvent.change(screen.getByPlaceholderText("Worship Workshop"), { target: { value: "Pizza Party (Updated)" } });
+  fireEvent.click(screen.getByText(/Save changes/));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/flyers/f1/generate",
+      expect.objectContaining({ title: "Pizza Party (Updated)" }),
+    ),
+  );
+  expect(client.post).not.toHaveBeenCalledWith("/api/flyers/generate", expect.anything());
+});
+
+test("Cancel edit exits edit mode and resets the form to blank", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/people") return Promise.resolve({ data: [] });
+    if (url === "/api/flyers/layouts") return Promise.resolve({ data: [] });
+    if (url === "/api/flyers") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "f1",
+            title: "Pizza Party",
+            layout: "monument",
+            engine: "ai",
+            social_url: "https://example.com/f1.png",
+            created_at: "2026-06-01T00:00:00Z",
+            content: { title: "Pizza Party", date_raw: "2026-07-18" },
+          },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<FlyerGenerator />);
+  fireEvent.click(await screen.findByText("✎ Edit"));
+  expect(screen.getByPlaceholderText("Worship Workshop")).toHaveValue("Pizza Party");
+  expect(await screen.findByText(/Save changes/)).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("Cancel edit"));
+
+  expect(screen.getByPlaceholderText("Worship Workshop")).toHaveValue("");
+  expect(screen.getByText(/Generate flyer/)).toBeInTheDocument();
+  expect(screen.queryByText("Cancel edit")).not.toBeInTheDocument();
+});
+
 test("blocks generation without a date, including after editing a past flyer that had one stripped", async () => {
   client.post.mockImplementation((url) => {
     if (url === "/api/flyers/generate") return Promise.resolve({ data: {} });
@@ -136,7 +216,7 @@ test("blocks generation without a date, including after editing a past flyer tha
 
   fireEvent.click(await screen.findByText("✎ Edit"));
   expect(screen.getByLabelText("Event date")).toHaveValue("");
-  expect(screen.getByText(/Generate flyer/)).toBeDisabled();
+  expect(screen.getByText(/Save changes/)).toBeDisabled();
 
   expect(client.post).not.toHaveBeenCalledWith("/api/flyers/generate", expect.anything());
 });
