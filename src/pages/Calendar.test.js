@@ -166,6 +166,47 @@ test("approving a pending event shows the suggested-tasks review panel", async (
   expect(screen.getByDisplayValue("Thank-you / debrief for Worship Intensive")).toBeInTheDocument();
 });
 
+test("shows a suggested-assignee hint (not a pre-filled dropdown) and lets the admin accept it with one click", async () => {
+  client.get.mockImplementation((url, opts) => {
+    if (url === "/api/events" && opts?.params?.status === "pending") {
+      return Promise.resolve({
+        data: [{ _id: "evt-pending", title: "Pizza Party", start: "2026-08-15T17:00:00Z", ministry_id: "ktm-test" }],
+      });
+    }
+    if (url === "/api/events/expanded") return Promise.resolve({ data: [] });
+    if (url === "/api/events/evt-pending/suggested-tasks") {
+      return Promise.resolve({
+        data: [
+          {
+            title: "Order pizza from Tony's",
+            due_date: "2026-08-13T17:00:00Z",
+            suggested_assignee: { user_id: "u1", name: "Sarah", reason: "Did the last 3 similar orders" },
+          },
+        ],
+      });
+    }
+    if (url === "/api/ministry/team") {
+      return Promise.resolve({ data: [{ _id: "u1", name: "Sarah", role: "team" }] });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<Calendar />);
+  fireEvent.click(await screen.findByText(/Approval queue/));
+  fireEvent.click(await screen.findByText("Approve"));
+  await screen.findByText("Suggested tasks for this event");
+
+  // The dropdown itself must stay unselected — this is a hint, not a
+  // pre-fill — while the hint text with the "why" and a one-click accept
+  // button are both visible.
+  expect(screen.getByRole("combobox")).toHaveValue("");
+  expect(await screen.findByText(/Did the last 3 similar orders/)).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("Use Sarah"));
+  expect(screen.getByRole("combobox")).toHaveValue("u1");
+});
+
 test("suggested-tasks panel requires an assignee before creating a checked row", async () => {
   client.get.mockImplementation((url, opts) => {
     if (url === "/api/events" && opts?.params?.status === "pending") {

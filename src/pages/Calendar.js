@@ -1356,6 +1356,28 @@ const Calendar = () => {
                     ))}
                   </select>
                 </div>
+                {row.suggested_assignee && (
+                  <div style={{ fontSize: "11px", color: "var(--gray-500)", display: "flex", alignItems: "center", gap: "6px" }}>
+                    💡 {row.suggested_assignee.name}
+                    {row.suggested_assignee.reason ? ` — ${row.suggested_assignee.reason}` : ""}
+                    {row.assignee !== row.suggested_assignee.user_id && (
+                      <button
+                        onClick={() => updateSuggestionRow(i, { assignee: row.suggested_assignee.user_id })}
+                        style={{
+                          padding: "2px 8px",
+                          background: "transparent",
+                          color: "var(--navy)",
+                          border: "0.5px solid var(--gray-300)",
+                          borderRadius: "4px",
+                          fontSize: "10px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Use {row.suggested_assignee.name.split(" ")[0]}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
