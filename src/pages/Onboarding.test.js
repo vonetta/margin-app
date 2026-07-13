@@ -23,6 +23,61 @@ beforeEach(() => {
   });
 });
 
+test("loads the ministry's existing tagline/website into the branding step", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/ministry") {
+      return Promise.resolve({ data: { tagline: "Equipping leaders", website: "https://ktm.org", branding: {} } });
+    }
+    if (url === "/api/profile") return Promise.resolve({ data: { voice_profile: {}, hashtags: {}, ctas: {} } });
+    return Promise.resolve({ data: {} });
+  });
+
+  render(<Onboarding />);
+  expect(await screen.findByDisplayValue("Equipping leaders")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("https://ktm.org")).toBeInTheDocument();
+});
+
+test("saving the branding step sends tagline, and only sends website when non-empty", async () => {
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<Onboarding />);
+  await screen.findByText("✨ Start from your website");
+
+  fireEvent.change(screen.getByPlaceholderText("Equipping leaders, changing lives"), {
+    target: { value: "Changing lives daily" },
+  });
+  fireEvent.click(screen.getByText("Save & continue"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/ministry",
+      expect.objectContaining({ tagline: "Changing lives daily" }),
+    ),
+  );
+  expect(client.put.mock.calls[0][1]).not.toHaveProperty("website");
+});
+
+test("prefilling from a website applies the drafted tagline and fills the website field", async () => {
+  client.post.mockResolvedValue({
+    data: {
+      voice_profile: { persona_name: "Grace", tagline: "Grace for all", tone_pillars: ["warm"], sample_phrases: [], avoid: [] },
+      suggested_colors: {},
+      hashtags: {},
+      source: { url: "https://grace.org/", had_readable_text: true },
+    },
+  });
+
+  render(<Onboarding />);
+  await screen.findByText("✨ Start from your website");
+  fireEvent.change(screen.getByPlaceholderText("https://yourministry.org"), {
+    target: { value: "https://grace.org" },
+  });
+  fireEvent.click(screen.getByText("Fill from my website"));
+
+  expect(await screen.findByDisplayValue("Grace for all")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("https://grace.org/")).toBeInTheDocument();
+});
+
 test("prefilling from a website posts the URL and shows a success notice", async () => {
   client.post.mockResolvedValue({
     data: {

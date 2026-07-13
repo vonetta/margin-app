@@ -187,7 +187,7 @@ const Communications = () => {
         icon="✉"
         color="var(--gold)"
         title="Communications"
-        subtitle="Draft emails to guest speakers and partner ministries"
+        subtitle="Draft emails to guest speakers and partner ministries — copy the text or open it in your own email client to send; Margin doesn't send these for you"
       />
 
       <div style={{ display: "flex", gap: "4px", marginBottom: "24px" }}>

@@ -35,6 +35,14 @@ const cardStyle = {
 
 const COLOR_FIELDS = ["primary", "accent", "background", "text", "gold"];
 const REGISTER_KEYS = ["formal", "warm", "energetic"];
+// A concrete worked example per register, since "how does this voice
+// write when formal" is abstract enough that a non-marketing admin can
+// stall on a blank input with no sense of what a good answer looks like.
+const REGISTER_EXAMPLES = {
+  formal: "e.g. a service bulletin announcement: \"You are cordially invited to join us for...\"",
+  warm: "e.g. a small-group reminder text: \"Hey family, can't wait to see you tonight!\"",
+  energetic: "e.g. a youth-event flyer caption: \"THIS. IS. HAPPENING. 🔥 Don't miss it!\"",
+};
 
 const Onboarding = () => {
   const navigate = useNavigate();
@@ -44,6 +52,8 @@ const Onboarding = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const [tagline, setTagline] = useState("");
+  const [website, setWebsite] = useState("");
   const [colors, setColors] = useState({});
   const [fonts, setFonts] = useState({ heading: "", body: "" });
   const [logoFile, setLogoFile] = useState(null);
@@ -74,6 +84,8 @@ const Onboarding = () => {
         client.get("/api/profile").catch(() => null),
       ]);
 
+      setTagline(ministryRes.data.tagline || "");
+      setWebsite(ministryRes.data.website || "");
       const branding = ministryRes.data.branding || {};
       setColors(branding.colors || {});
       setFonts(branding.fonts || { heading: "", body: "" });
@@ -126,8 +138,15 @@ const Onboarding = () => {
         past_posts: prefillPosts.trim() || undefined,
       });
       const d = res.data;
+      // The website field itself is the one thing we're already certain
+      // of — it's the URL the admin just typed in, resolved through any
+      // redirects — so it's safe to fill even though nothing else here
+      // guarantees the model drafted usable content.
+      if (!website.trim() && d.source?.url) setWebsite(d.source.url);
+
       const vp = d.voice_profile || {};
       if (vp.persona_name) setPersonaName(vp.persona_name);
+      if (vp.tagline) setTagline(vp.tagline);
       if (vp.tone_pillars?.length) setTonePillars(vp.tone_pillars.join(", "));
       if (vp.sample_phrases?.length) setSamplePhrases(vp.sample_phrases.join("\n"));
       if (vp.avoid?.length) setAvoidList(vp.avoid.join(", "));
@@ -182,7 +201,15 @@ const Onboarding = () => {
   };
 
   const saveBranding = async () => {
-    await client.put("/api/ministry", { branding: { colors, fonts } });
+    // website is validated server-side as a real URL when present — an
+    // empty string would fail that check, so it's only sent when there's
+    // actually something to save (same reason logoFile below is
+    // conditional).
+    await client.put("/api/ministry", {
+      tagline: tagline.trim(),
+      ...(website.trim() ? { website: website.trim() } : {}),
+      branding: { colors, fonts },
+    });
     if (logoFile) {
       const formData = new FormData();
       formData.append("logo", logoFile);
@@ -369,6 +396,26 @@ const Onboarding = () => {
 
       {STEPS[step] === "branding" && (
         <div style={cardStyle}>
+          <div style={{ marginBottom: "16px" }}>
+            <label style={labelStyle}>Tagline (optional)</label>
+            <input
+              value={tagline}
+              onChange={(e) => setTagline(e.target.value)}
+              placeholder="Equipping leaders, changing lives"
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ marginBottom: "16px" }}>
+            <label style={labelStyle}>Website (optional)</label>
+            <input
+              type="url"
+              aria-label="Ministry website"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              placeholder="https://yourministry.org/about"
+              style={inputStyle}
+            />
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
             {COLOR_FIELDS.map((field) => (
               <div key={field}>
@@ -463,6 +510,10 @@ const Onboarding = () => {
           </div>
           <div>
             <label style={labelStyle}>Communication registers</label>
+            <p style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "10px", marginTop: "-2px" }}>
+              How this voice actually sounds in each mode — a real sentence or two is more useful here than a
+              description. Skip any you're not sure about; the AI will fall back to the tone pillars above.
+            </p>
             {REGISTER_KEYS.map((key) => (
               <div key={key} style={{ marginBottom: "10px" }}>
                 <label style={{ fontSize: "11px", color: "var(--gray-500)", textTransform: "capitalize" }}>
@@ -473,7 +524,7 @@ const Onboarding = () => {
                   onChange={(e) =>
                     setRegisters((r) => ({ ...r, [key]: e.target.value }))
                   }
-                  placeholder={`How ${personaName || "this voice"} writes when ${key}...`}
+                  placeholder={REGISTER_EXAMPLES[key]}
                   style={inputStyle}
                 />
               </div>
