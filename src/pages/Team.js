@@ -161,6 +161,7 @@ const Team = () => {
               placeholder="Name (optional)"
               value={inviteForm.name}
               onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
+              onKeyDown={(e) => e.key === "Enter" && handleSendInvite()}
               style={{
                 flex: 1,
                 padding: "8px 12px",
@@ -174,6 +175,7 @@ const Team = () => {
               placeholder="Email"
               value={inviteForm.email}
               onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+              onKeyDown={(e) => e.key === "Enter" && handleSendInvite()}
               style={{
                 flex: 1,
                 padding: "8px 12px",

@@ -80,6 +80,32 @@ test("sending an invite posts the email/name/role and shows it in the pending li
   expect(screen.getByText(/invited as Leader/)).toBeInTheDocument();
 });
 
+test("pressing Enter in the email field sends the invite without clicking the button", async () => {
+  client.post.mockResolvedValue({
+    data: {
+      _id: "inv2",
+      name: "",
+      email: "quick@ktm.com",
+      role: "team",
+      invite_link: "https://margin-app.example/join/xyz789",
+    },
+  });
+
+  render(<Team />);
+  await screen.findByText("Alex Admin");
+
+  fireEvent.click(screen.getByText("+ Add member"));
+  fireEvent.change(screen.getByPlaceholderText("Email"), { target: { value: "quick@ktm.com" } });
+  fireEvent.keyDown(screen.getByPlaceholderText("Email"), { key: "Enter" });
+
+  await waitFor(() =>
+    expect(client.post).toHaveBeenCalledWith(
+      "/api/invites",
+      expect.objectContaining({ email: "quick@ktm.com" }),
+    ),
+  );
+});
+
 test("revoking an invite removes it from the pending list", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/ministry/team") return Promise.resolve({ data: [] });
