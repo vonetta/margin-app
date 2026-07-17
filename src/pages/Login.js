@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -7,8 +7,20 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // The api client redirects here with ?expired=1 when a previously
+  // authenticated session's token is rejected (expired/revoked) — strip
+  // it from the URL right away so refreshing doesn't re-show it.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("expired") === "1") {
+      setSessionExpired(true);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -70,9 +82,26 @@ const Login = () => {
           </p>
         </div>
 
+        {sessionExpired && (
+          <div
+            style={{
+              background: "#fff8ec",
+              border: "0.5px solid #f0d080",
+              borderRadius: "8px",
+              padding: "10px 14px",
+              fontSize: "12px",
+              color: "#b8902e",
+              marginBottom: "16px",
+            }}
+          >
+            Your session expired — please sign in again.
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: "16px" }}>
             <label
+              htmlFor="login-email"
               style={{
                 display: "block",
                 fontSize: "11px",
@@ -86,6 +115,7 @@ const Login = () => {
               Email
             </label>
             <input
+              id="login-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -104,6 +134,7 @@ const Login = () => {
 
           <div style={{ marginBottom: "24px" }}>
             <label
+              htmlFor="login-password"
               style={{
                 display: "block",
                 fontSize: "11px",
@@ -117,6 +148,7 @@ const Login = () => {
               Password
             </label>
             <input
+              id="login-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
