@@ -89,6 +89,51 @@ test("approves a pending SOP draft", async () => {
   await waitFor(() => expect(screen.queryByText("Sunday Setup")).not.toBeInTheDocument());
 });
 
+test("rejecting a draft opens a notes field and sends the notes to the reject endpoint", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile/sops/drafts") return Promise.resolve({ data: [pendingDraft] });
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockImplementation((url) => {
+    if (url === "/api/profile/sops/drafts/sop1/reject") {
+      return Promise.resolve({ data: { ...pendingDraft, status: "rejected" } });
+    }
+    return Promise.resolve({ data: {} });
+  });
+
+  render(<Sops />);
+  await screen.findByText("Sunday Setup");
+  fireEvent.click(screen.getByText("✕ Reject"));
+
+  fireEvent.change(screen.getByPlaceholderText(/Why is this being rejected/), {
+    target: { value: "Wrong setup order for this event type." },
+  });
+  fireEvent.click(screen.getByText("Confirm reject"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith("/api/profile/sops/drafts/sop1/reject", {
+      notes: "Wrong setup order for this event type.",
+    }),
+  );
+});
+
+test("rejecting a draft without entering notes sends notes: undefined", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile/sops/drafts") return Promise.resolve({ data: [pendingDraft] });
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: { ...pendingDraft, status: "rejected" } });
+
+  render(<Sops />);
+  await screen.findByText("Sunday Setup");
+  fireEvent.click(screen.getByText("✕ Reject"));
+  fireEvent.click(screen.getByText("Confirm reject"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith("/api/profile/sops/drafts/sop1/reject", { notes: undefined }),
+  );
+});
+
 test("edits an SOP draft's title and content before saving", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/profile/sops/drafts") return Promise.resolve({ data: [pendingDraft] });

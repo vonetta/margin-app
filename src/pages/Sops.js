@@ -51,6 +51,8 @@ const Sops = () => {
   const [editSopTitle, setEditSopTitle] = useState("");
   const [editSopContent, setEditSopContent] = useState("");
   const [confirmDeleteSopId, setConfirmDeleteSopId] = useState(null);
+  const [rejectingSopId, setRejectingSopId] = useState(null);
+  const [rejectNotes, setRejectNotes] = useState("");
   const [exportingSopId, setExportingSopId] = useState(null);
 
   const fetchSopDrafts = useCallback(async () => {
@@ -145,10 +147,14 @@ const Sops = () => {
     }
   };
 
-  const handleRejectSop = async (id) => {
+  const handleRejectSop = async (id, notes) => {
     try {
-      const res = await client.put(`/api/profile/sops/drafts/${id}/reject`, {});
+      const res = await client.put(`/api/profile/sops/drafts/${id}/reject`, {
+        notes: notes?.trim() || undefined,
+      });
       setSopDrafts((prev) => prev.map((d) => (d._id === id ? res.data : d)));
+      setRejectingSopId(null);
+      setRejectNotes("");
     } catch (err) {
       setError(err.response?.data?.error || "Failed to reject SOP");
     }
@@ -471,9 +477,12 @@ const Sops = () => {
                           ✓ Approve
                         </button>
                       )}
-                      {draft.status !== "rejected" && (
+                      {draft.status !== "rejected" && rejectingSopId !== draft._id && (
                         <button
-                          onClick={() => handleRejectSop(draft._id)}
+                          onClick={() => {
+                            setRejectingSopId(draft._id);
+                            setRejectNotes("");
+                          }}
                           style={{
                             padding: "5px 12px",
                             background: "transparent",
@@ -531,6 +540,45 @@ const Sops = () => {
                         </button>
                       )}
                     </div>
+                    {rejectingSopId === draft._id && (
+                      <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                        <textarea
+                          value={rejectNotes}
+                          onChange={(e) => setRejectNotes(e.target.value)}
+                          placeholder="Why is this being rejected? (optional — logged to the Feedback tab so future drafts don't repeat it)"
+                          rows={2}
+                          style={{ ...inputStyle, resize: "vertical", fontSize: "12px" }}
+                        />
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button
+                            onClick={() => handleRejectSop(draft._id, rejectNotes)}
+                            style={{
+                              padding: "5px 12px",
+                              background: "#c0504d",
+                              color: "var(--white)",
+                              border: "none",
+                              borderRadius: "var(--border-radius)",
+                              fontSize: "11px",
+                            }}
+                          >
+                            Confirm reject
+                          </button>
+                          <button
+                            onClick={() => setRejectingSopId(null)}
+                            style={{
+                              padding: "5px 12px",
+                              background: "transparent",
+                              color: "var(--gray-600)",
+                              border: "0.5px solid var(--gray-300)",
+                              borderRadius: "var(--border-radius)",
+                              fontSize: "11px",
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
