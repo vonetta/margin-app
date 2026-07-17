@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { clickableDivProps } from "../utils/a11y";
+import { SkeletonRows } from "../components/Skeleton";
 
 const USAGE_LABELS = {
   team_members: "Team members",
@@ -45,6 +46,7 @@ const Dashboard = () => {
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [upcoming, setUpcoming] = useState([]);
   const [loadingUpcoming, setLoadingUpcoming] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -107,18 +109,34 @@ const Dashboard = () => {
   }, [fetchMyTasks, fetchUpcoming]);
 
   const handleCompleteTask = async (task) => {
+    setError("");
     try {
       await client.put(`/api/tasks/${task._id}/complete`, null, {
         headers: { "x-ministry-id": task.ministry_id },
       });
       setMyTasks((prev) => prev.filter((t) => t._id !== task._id));
     } catch (err) {
-      // non-fatal — the task just stays in the list, user can retry
+      setError("Failed to complete that task — try again");
     }
   };
 
   return (
     <div style={{ padding: "32px" }}>
+      {error && (
+        <div
+          style={{
+            background: "#fdf0f0",
+            border: "0.5px solid #e8b4b4",
+            borderRadius: "var(--border-radius)",
+            padding: "10px 16px",
+            fontSize: "12px",
+            color: "#c0504d",
+            marginBottom: "16px",
+          }}
+        >
+          {error}
+        </div>
+      )}
       <div
         style={{
           position: "relative",
@@ -331,7 +349,7 @@ const Dashboard = () => {
             </div>
           </div>
           {loadingTasks ? (
-            <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>Loading...</div>
+            <SkeletonRows count={3} />
           ) : myTasks.length === 0 ? (
             <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
               Nothing on your task list.
@@ -458,7 +476,7 @@ const Dashboard = () => {
             </div>
           </div>
           {loadingUpcoming ? (
-            <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>Loading...</div>
+            <SkeletonRows count={3} />
           ) : upcoming.length === 0 ? (
             <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
               Nothing in the next {UPCOMING_WINDOW_DAYS} days.

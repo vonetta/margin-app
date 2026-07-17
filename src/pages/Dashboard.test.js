@@ -173,6 +173,32 @@ describe("My Tasks and Upcoming widgets", () => {
     await waitFor(() => expect(screen.queryByText("Water the plants")).not.toBeInTheDocument());
   });
 
+  test("shows an error and keeps the task visible if completing it fails", async () => {
+    mockUser = {
+      name: "Test User",
+      ministries: [{ ministry_id: "ktm-test", name: "KTM Test" }],
+    };
+
+    client.get.mockImplementation((url) => {
+      if (url === "/api/ministry/plan-usage") return Promise.reject(new Error("skip"));
+      if (url === "/api/tasks") {
+        return Promise.resolve({
+          data: [{ _id: "t1", title: "Water the plants", due_date: null, status: "open" }],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+    client.put.mockRejectedValue(new Error("network error"));
+
+    render(<Dashboard />);
+
+    const checkbox = await screen.findByTitle("Mark complete");
+    fireEvent.click(checkbox);
+
+    expect(await screen.findByText("Failed to complete that task — try again")).toBeInTheDocument();
+    expect(screen.getByText("Water the plants")).toBeInTheDocument();
+  });
+
   test("shows upcoming calendar occurrences within the next 14 days", async () => {
     mockUser = {
       name: "Test User",

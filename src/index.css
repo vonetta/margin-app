@@ -62,3 +62,19 @@ textarea,
 select {
   font-family: "Montserrat", sans-serif;
 }
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.skeleton {
+  background: var(--gray-300);
+  border-radius: var(--border-radius);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
