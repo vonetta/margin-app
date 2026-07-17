@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import FlyerStyleWizard from "../components/FlyerStyleWizard";
 import PageHeader from "../components/PageHeader";
 import { clickableDivProps } from "../utils/a11y";
+import { SkeletonRows } from "../components/Skeleton";
 
 const PLATFORMS = ["Instagram", "Facebook", "Email", "Quote card"];
 
@@ -299,16 +300,18 @@ const ContentStudio = () => {
   };
 
   const handleApprove = async (draftId) => {
+    setError("");
     try {
       await client.put(`/api/content/drafts/${draftId}/approve`);
       await fetchDrafts();
       setSelectedDraft(drafts.find((d) => d._id === draftId) || null);
     } catch (err) {
-      console.error("Failed to approve");
+      setError(err.response?.data?.error || "Failed to approve this draft");
     }
   };
 
   const handleReject = async (draftId) => {
+    setError("");
     try {
       if (feedback.trim()) {
         await client.put(`/api/content/drafts/${draftId}/feedback`, {
@@ -320,7 +323,7 @@ const ContentStudio = () => {
       setFeedback("");
       await fetchDrafts();
     } catch (err) {
-      console.error("Failed to reject");
+      setError(err.response?.data?.error || "Failed to reject this draft");
     }
   };
 
@@ -383,6 +386,22 @@ const ContentStudio = () => {
           </button>
         ))}
       </div>
+
+      {error && (
+        <div
+          style={{
+            background: "#fdf0f0",
+            border: "0.5px solid #e8b4b4",
+            borderRadius: "var(--border-radius)",
+            padding: "10px 16px",
+            fontSize: "12px",
+            color: "#c0504d",
+            marginBottom: "16px",
+          }}
+        >
+          {error}
+        </div>
+      )}
 
       {tab === "generate" && (
         <div
@@ -689,21 +708,6 @@ const ContentStudio = () => {
               Preview
             </div>
 
-            {error && (
-              <div
-                style={{
-                  background: "#fdf0f0",
-                  border: "0.5px solid #e8b4b4",
-                  borderRadius: "var(--border-radius)",
-                  padding: "12px",
-                  fontSize: "12px",
-                  color: "#c0504d",
-                }}
-              >
-                {error}
-              </div>
-            )}
-
             {!finalCaption && (
               <div
                 style={{
@@ -874,15 +878,7 @@ const ContentStudio = () => {
         >
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {loadingDrafts ? (
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "var(--gray-500)",
-                  padding: "20px 0",
-                }}
-              >
-                Loading drafts...
-              </div>
+              <SkeletonRows count={4} rowHeight="64px" gap="8px" />
             ) : drafts.length === 0 ? (
               <div
                 style={{

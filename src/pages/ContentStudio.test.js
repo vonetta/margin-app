@@ -4,6 +4,7 @@ import ContentStudio from "./ContentStudio";
 jest.mock("../api/client", () => ({
   get: jest.fn(),
   post: jest.fn(),
+  put: jest.fn(),
   delete: jest.fn(),
 }));
 const client = require("../api/client");
@@ -68,6 +69,7 @@ const finalizeChatResponseWithTier1Fields = {
 beforeEach(() => {
   client.get.mockReset();
   client.post.mockReset();
+  client.put.mockReset();
   client.get.mockImplementation((url) => {
     if (url === "/api/profile") return Promise.resolve({ data: { type_system: { fonts: [] } } });
     if (url === "/api/people") return Promise.resolve({ data: [] });
@@ -344,4 +346,62 @@ describe("tone-aware flyer generation", () => {
 
     expect(document.getElementById("content-studio-tone")).toBeNull();
   });
+});
+
+test("shows an error if approving a queued draft fails", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile") return Promise.resolve({ data: { type_system: { fonts: [] } } });
+    if (url === "/api/content/drafts") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "d1",
+            platform: "Instagram",
+            caption: "Join us Sunday!",
+            status: "pending",
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.post.mockResolvedValue({ data: { options: [] } });
+  client.put.mockRejectedValue({ response: { data: { error: "Draft was already handled" } } });
+
+  render(<ContentStudio />);
+  fireEvent.click(await screen.findByText(/Draft queue/));
+
+  fireEvent.click(await screen.findByText("✓ Approve & queue"));
+
+  expect(await screen.findByText("Draft was already handled")).toBeInTheDocument();
+});
+
+test("shows an error if rejecting a queued draft fails", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile") return Promise.resolve({ data: { type_system: { fonts: [] } } });
+    if (url === "/api/content/drafts") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "d1",
+            platform: "Instagram",
+            caption: "Join us Sunday!",
+            status: "pending",
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.post.mockResolvedValue({ data: { options: [] } });
+  client.put.mockRejectedValue(new Error("network error"));
+
+  render(<ContentStudio />);
+  fireEvent.click(await screen.findByText(/Draft queue/));
+
+  fireEvent.click(await screen.findByText("✕ Reject"));
+
+  expect(await screen.findByText("Failed to reject this draft")).toBeInTheDocument();
 });
