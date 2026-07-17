@@ -4,6 +4,8 @@ import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import PageHeader from "../components/PageHeader";
 
+const REGISTER_KEYS = ["formal", "warm", "energetic"];
+
 const ProfileEditor = () => {
   const navigate = useNavigate();
   const { user, ministryId, refreshUser, switchMinistry } = useAuth();
@@ -18,7 +20,29 @@ const ProfileEditor = () => {
   const [signOff, setSignOff] = useState("");
   const [tonePillars, setTonePillars] = useState("");
   const [avoidList, setAvoidList] = useState("");
+  const [registers, setRegisters] = useState({});
   const [newPhrase, setNewPhrase] = useState("");
+
+  // "Advanced" tab — platform_notes/platforms, visual_prohibitions,
+  // templates, and recurring_content all existed on the schema and were
+  // already consumed by content generation, but had no edit surface past
+  // initial onboarding seeding. Each saves independently via its own PUT.
+  const [platformsList, setPlatformsList] = useState("");
+  const [platformNotes, setPlatformNotes] = useState({});
+  const [savingPlatformSettings, setSavingPlatformSettings] = useState(false);
+
+  const [visualProhibitions, setVisualProhibitions] = useState("");
+  const [savingVisualGuidelines, setSavingVisualGuidelines] = useState(false);
+
+  const [templates, setTemplates] = useState([]);
+  const [newTemplateTitle, setNewTemplateTitle] = useState("");
+  const [newTemplateContent, setNewTemplateContent] = useState("");
+  const [savingTemplates, setSavingTemplates] = useState(false);
+
+  const [recurringContent, setRecurringContent] = useState([]);
+  const [newRecurringTitle, setNewRecurringTitle] = useState("");
+  const [newRecurringContent, setNewRecurringContent] = useState("");
+  const [savingRecurringContent, setSavingRecurringContent] = useState(false);
 
   const [subMinistries, setSubMinistries] = useState([]);
   const [loadingSubMinistries, setLoadingSubMinistries] = useState(false);
@@ -144,16 +168,40 @@ const ProfileEditor = () => {
     }
   };
 
+  // Snapshot of the last saved/loaded form values — compared against
+  // current form state to know whether there are unsaved edits worth
+  // warning about before the user navigates away.
+  const [savedSnapshot, setSavedSnapshot] = useState(null);
+
   const fetchProfile = useCallback(async () => {
     setLoading(true);
     try {
       const res = await client.get("/api/profile");
       setProfile(res.data);
       const vp = res.data.voice_profile || {};
-      setPersonaName(vp.persona_name || "");
-      setSignOff(vp.sign_off || "");
-      setTonePillars((vp.tone_pillars || []).join(", "));
-      setAvoidList((vp.avoid || []).join(", "));
+      const loaded = {
+        personaName: vp.persona_name || "",
+        signOff: vp.sign_off || "",
+        tonePillars: (vp.tone_pillars || []).join(", "),
+        avoidList: (vp.avoid || []).join(", "),
+        registers: vp.registers || {},
+        platformsList: (res.data.platforms || []).join(", "),
+        platformNotes: res.data.platform_notes || {},
+        visualProhibitions: (res.data.visual_prohibitions || []).join("\n"),
+        templates: res.data.templates || [],
+        recurringContent: res.data.recurring_content || [],
+      };
+      setPersonaName(loaded.personaName);
+      setSignOff(loaded.signOff);
+      setTonePillars(loaded.tonePillars);
+      setAvoidList(loaded.avoidList);
+      setRegisters(loaded.registers);
+      setPlatformsList(loaded.platformsList);
+      setPlatformNotes(loaded.platformNotes);
+      setVisualProhibitions(loaded.visualProhibitions);
+      setTemplates(loaded.templates);
+      setRecurringContent(loaded.recurringContent);
+      setSavedSnapshot(loaded);
     } catch (err) {
       setError("Failed to load profile");
     } finally {
@@ -164,6 +212,42 @@ const ProfileEditor = () => {
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  const isDirty =
+    savedSnapshot !== null &&
+    JSON.stringify({
+      personaName,
+      signOff,
+      tonePillars,
+      avoidList,
+      registers,
+      platformsList,
+      platformNotes,
+      visualProhibitions,
+      templates,
+      recurringContent,
+    }) !== JSON.stringify(savedSnapshot);
+
+  // Covers refresh/close/typing a new URL. In-app tab switches are
+  // guarded separately in changeTab since SPA navigation doesn't fire
+  // beforeunload.
+  useEffect(() => {
+    const handler = (e) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
+  const changeTab = (key) => {
+    if (key === tab) return;
+    if (isDirty && !window.confirm("You have unsaved changes on this tab that will be lost. Switch anyway?")) {
+      return;
+    }
+    setTab(key);
+  };
 
   const flash = (msg) => {
     setMessage(msg);
@@ -185,6 +269,7 @@ const ProfileEditor = () => {
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean),
+        registers,
       });
       flash("Voice profile saved");
       await fetchProfile();
@@ -214,6 +299,105 @@ const ProfileEditor = () => {
       await fetchProfile();
     } catch (err) {
       setError("Failed to remove phrase");
+    }
+  };
+
+  const platformNames = platformsList
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const savePlatformSettings = async () => {
+    setSavingPlatformSettings(true);
+    setError("");
+    try {
+      // Only keep notes for platforms still actually in the list — a
+      // renamed/removed platform shouldn't leave an orphaned note behind.
+      const trimmedNotes = Object.fromEntries(
+        Object.entries(platformNotes).filter(([key]) => platformNames.includes(key)),
+      );
+      await client.put("/api/profile/platform-settings", {
+        platforms: platformNames,
+        platform_notes: trimmedNotes,
+      });
+      flash("Platform settings saved");
+      await fetchProfile();
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to save platform settings");
+    } finally {
+      setSavingPlatformSettings(false);
+    }
+  };
+
+  const saveVisualGuidelines = async () => {
+    setSavingVisualGuidelines(true);
+    setError("");
+    try {
+      await client.put("/api/profile/visual-guidelines", {
+        visual_prohibitions: visualProhibitions
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      });
+      flash("Visual guidelines saved");
+      await fetchProfile();
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to save visual guidelines");
+    } finally {
+      setSavingVisualGuidelines(false);
+    }
+  };
+
+  const addTemplate = () => {
+    if (!newTemplateContent.trim()) return;
+    setTemplates((prev) => [...prev, { title: newTemplateTitle.trim() || "Untitled", content: newTemplateContent.trim() }]);
+    setNewTemplateTitle("");
+    setNewTemplateContent("");
+  };
+
+  const removeTemplate = (index) => {
+    setTemplates((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const saveTemplates = async () => {
+    setSavingTemplates(true);
+    setError("");
+    try {
+      await client.put("/api/profile/templates", { templates });
+      flash("Templates saved");
+      await fetchProfile();
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to save templates");
+    } finally {
+      setSavingTemplates(false);
+    }
+  };
+
+  const addRecurringContent = () => {
+    if (!newRecurringContent.trim()) return;
+    setRecurringContent((prev) => [
+      ...prev,
+      { title: newRecurringTitle.trim() || "Untitled", content: newRecurringContent.trim() },
+    ]);
+    setNewRecurringTitle("");
+    setNewRecurringContent("");
+  };
+
+  const removeRecurringContent = (index) => {
+    setRecurringContent((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const saveRecurringContent = async () => {
+    setSavingRecurringContent(true);
+    setError("");
+    try {
+      await client.put("/api/profile/recurring-content", { recurring_content: recurringContent });
+      flash("Recurring content saved");
+      await fetchProfile();
+    } catch (err) {
+      setError(err.response?.data?.error || "Failed to save recurring content");
+    } finally {
+      setSavingRecurringContent(false);
     }
   };
 
@@ -333,6 +517,7 @@ const ProfileEditor = () => {
           { key: "voice", label: "Voice" },
           { key: "phrases", label: "Phrases" },
           { key: "feedback", label: "Feedback" },
+          { key: "advanced", label: "Advanced" },
           ...(isAdmin
             ? [
                 { key: "sub-ministries", label: "Sub-ministries" },
@@ -342,7 +527,7 @@ const ProfileEditor = () => {
         ].map((t) => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => changeTab(t.key)}
             style={{
               padding: "6px 16px",
               borderRadius: "20px",
@@ -401,6 +586,27 @@ const ProfileEditor = () => {
                 disabled={!canEdit}
                 style={inputStyle}
               />
+            </div>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={labelStyle}>Communication registers</label>
+              <p style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "10px", marginTop: "-2px" }}>
+                How this voice actually sounds in each mode — used every time content is generated. Only set once
+                during initial setup until now; editable here going forward.
+              </p>
+              {REGISTER_KEYS.map((key) => (
+                <div key={key} style={{ marginBottom: "10px" }}>
+                  <label style={{ fontSize: "11px", color: "var(--gray-500)", textTransform: "capitalize" }} htmlFor={`profile-register-${key}`}>
+                    {key}
+                  </label>
+                  <input
+                    id={`profile-register-${key}`}
+                    value={registers[key] || ""}
+                    onChange={(e) => setRegisters((r) => ({ ...r, [key]: e.target.value }))}
+                    disabled={!canEdit}
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
             </div>
             {canEdit && (
               <button
@@ -552,6 +758,258 @@ const ProfileEditor = () => {
                     </div>
                   </div>
                 ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === "advanced" && (
+        <div style={{ maxWidth: "600px" }}>
+          <div style={cardStyle}>
+            <label style={labelStyle} htmlFor="profile-platforms">Platforms you post to (comma separated)</label>
+            <input
+              id="profile-platforms"
+              value={platformsList}
+              onChange={(e) => setPlatformsList(e.target.value)}
+              placeholder="Instagram, Facebook, Email"
+              disabled={!canEdit}
+              style={{ ...inputStyle, marginBottom: "12px" }}
+            />
+            {platformNames.length > 0 && (
+              <>
+                <label style={labelStyle}>Per-platform tone notes (optional)</label>
+                <p style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "10px", marginTop: "-2px" }}>
+                  Used whenever content is generated for that platform — e.g. Instagram tends to be shorter and more
+                  visual than Email.
+                </p>
+                {platformNames.map((name) => (
+                  <div key={name} style={{ marginBottom: "10px" }}>
+                    <label style={{ fontSize: "11px", color: "var(--gray-500)" }} htmlFor={`profile-platform-note-${name}`}>
+                      {name}
+                    </label>
+                    <input
+                      id={`profile-platform-note-${name}`}
+                      value={platformNotes[name] || ""}
+                      onChange={(e) => setPlatformNotes((p) => ({ ...p, [name]: e.target.value }))}
+                      disabled={!canEdit}
+                      style={inputStyle}
+                    />
+                  </div>
+                ))}
+              </>
+            )}
+            {canEdit && (
+              <button
+                onClick={savePlatformSettings}
+                disabled={savingPlatformSettings}
+                style={{
+                  padding: "8px 16px",
+                  background: savingPlatformSettings ? "var(--gray-400)" : "var(--primary)",
+                  color: "var(--white)",
+                  border: "none",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "12px",
+                  fontWeight: "500",
+                }}
+              >
+                {savingPlatformSettings ? "Saving..." : "Save platform settings"}
+              </button>
+            )}
+          </div>
+
+          <div style={cardStyle}>
+            <label style={labelStyle} htmlFor="profile-visual-prohibitions">Visual guidelines (one per line)</label>
+            <p style={{ fontSize: "11px", color: "var(--gray-500)", marginBottom: "10px", marginTop: "-2px" }}>
+              Things the AI flyer engine must never depict — colors, clutter, stock imagery, whatever's off-brand for
+              this ministry.
+            </p>
+            <textarea
+              id="profile-visual-prohibitions"
+              value={visualProhibitions}
+              onChange={(e) => setVisualProhibitions(e.target.value)}
+              disabled={!canEdit}
+              rows={5}
+              placeholder={"Neon or hyper-saturated colors outside the official palette\nCluttered or chaotic backgrounds\nGeneric clip art or low-quality stock graphics"}
+              style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6, marginBottom: "12px" }}
+            />
+            {canEdit && (
+              <button
+                onClick={saveVisualGuidelines}
+                disabled={savingVisualGuidelines}
+                style={{
+                  padding: "8px 16px",
+                  background: savingVisualGuidelines ? "var(--gray-400)" : "var(--primary)",
+                  color: "var(--white)",
+                  border: "none",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "12px",
+                  fontWeight: "500",
+                }}
+              >
+                {savingVisualGuidelines ? "Saving..." : "Save visual guidelines"}
+              </button>
+            )}
+          </div>
+
+          <div style={cardStyle}>
+            <label style={labelStyle}>Content templates ({templates.length})</label>
+            {templates.length === 0 ? (
+              <div style={{ fontSize: "12px", color: "var(--gray-500)", marginBottom: "12px" }}>None yet.</div>
+            ) : (
+              templates.map((t, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: "12px",
+                    padding: "10px 0",
+                    borderBottom: "0.5px solid var(--gray-300)",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: "12px", fontWeight: "500", color: "var(--charcoal)" }}>{t.title}</div>
+                    <div style={{ fontSize: "11px", color: "var(--gray-600)", marginTop: "2px" }}>{t.content}</div>
+                  </div>
+                  {canEdit && (
+                    <button
+                      onClick={() => removeTemplate(i)}
+                      style={{ background: "transparent", border: "none", color: "#c0504d", fontSize: "14px", flexShrink: 0 }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+            {canEdit && (
+              <div style={{ marginTop: "12px" }}>
+                <input
+                  value={newTemplateTitle}
+                  onChange={(e) => setNewTemplateTitle(e.target.value)}
+                  placeholder="Title (e.g. Event Announcement)"
+                  style={{ ...inputStyle, marginBottom: "8px" }}
+                />
+                <textarea
+                  value={newTemplateContent}
+                  onChange={(e) => setNewTemplateContent(e.target.value)}
+                  placeholder="Template content..."
+                  rows={3}
+                  style={{ ...inputStyle, resize: "vertical", marginBottom: "8px" }}
+                />
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    onClick={addTemplate}
+                    style={{
+                      padding: "6px 14px",
+                      background: "transparent",
+                      color: "var(--primary)",
+                      border: "0.5px solid var(--gray-300)",
+                      borderRadius: "var(--border-radius)",
+                      fontSize: "12px",
+                    }}
+                  >
+                    + Add template
+                  </button>
+                  <button
+                    onClick={saveTemplates}
+                    disabled={savingTemplates}
+                    style={{
+                      padding: "6px 14px",
+                      background: savingTemplates ? "var(--gray-400)" : "var(--primary)",
+                      color: "var(--white)",
+                      border: "none",
+                      borderRadius: "var(--border-radius)",
+                      fontSize: "12px",
+                      fontWeight: "500",
+                    }}
+                  >
+                    {savingTemplates ? "Saving..." : "Save templates"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={cardStyle}>
+            <label style={labelStyle}>Recurring content & branding ({recurringContent.length})</label>
+            {recurringContent.length === 0 ? (
+              <div style={{ fontSize: "12px", color: "var(--gray-500)", marginBottom: "12px" }}>None yet.</div>
+            ) : (
+              recurringContent.map((r, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: "12px",
+                    padding: "10px 0",
+                    borderBottom: "0.5px solid var(--gray-300)",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: "12px", fontWeight: "500", color: "var(--charcoal)" }}>{r.title}</div>
+                    <div style={{ fontSize: "11px", color: "var(--gray-600)", marginTop: "2px" }}>{r.content}</div>
+                  </div>
+                  {canEdit && (
+                    <button
+                      onClick={() => removeRecurringContent(i)}
+                      style={{ background: "transparent", border: "none", color: "#c0504d", fontSize: "14px", flexShrink: 0 }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+            {canEdit && (
+              <div style={{ marginTop: "12px" }}>
+                <input
+                  value={newRecurringTitle}
+                  onChange={(e) => setNewRecurringTitle(e.target.value)}
+                  placeholder="Title (e.g. Weekly Verse)"
+                  style={{ ...inputStyle, marginBottom: "8px" }}
+                />
+                <textarea
+                  value={newRecurringContent}
+                  onChange={(e) => setNewRecurringContent(e.target.value)}
+                  placeholder="Content..."
+                  rows={3}
+                  style={{ ...inputStyle, resize: "vertical", marginBottom: "8px" }}
+                />
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    onClick={addRecurringContent}
+                    style={{
+                      padding: "6px 14px",
+                      background: "transparent",
+                      color: "var(--primary)",
+                      border: "0.5px solid var(--gray-300)",
+                      borderRadius: "var(--border-radius)",
+                      fontSize: "12px",
+                    }}
+                  >
+                    + Add entry
+                  </button>
+                  <button
+                    onClick={saveRecurringContent}
+                    disabled={savingRecurringContent}
+                    style={{
+                      padding: "6px 14px",
+                      background: savingRecurringContent ? "var(--gray-400)" : "var(--primary)",
+                      color: "var(--white)",
+                      border: "none",
+                      borderRadius: "var(--border-radius)",
+                      fontSize: "12px",
+                      fontWeight: "500",
+                    }}
+                  >
+                    {savingRecurringContent ? "Saving..." : "Save recurring content"}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>

@@ -142,6 +142,198 @@ test("shows a status message and lands on the Social tab after a Meta redirect b
   window.location = originalLocation;
 });
 
+test("edits communication registers and includes them in the voice save", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile") {
+      return Promise.resolve({
+        data: { voice_profile: { registers: { formal: "Reverent and clear" } } },
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<ProfileEditor />);
+  await screen.findByText("Voice");
+
+  const formalInput = screen.getByDisplayValue("Reverent and clear");
+  fireEvent.change(formalInput, { target: { value: "Reverent, warm, and clear" } });
+
+  const energeticInput = screen.getByLabelText("energetic");
+  fireEvent.change(energeticInput, { target: { value: "Upbeat and inviting" } });
+
+  fireEvent.click(screen.getByText("Save voice profile"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/profile/voice",
+      expect.objectContaining({
+        registers: { formal: "Reverent, warm, and clear", energetic: "Upbeat and inviting" },
+      }),
+    ),
+  );
+});
+
+test("saves platform settings with per-platform notes, dropping notes for removed platforms", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile") {
+      return Promise.resolve({
+        data: {
+          voice_profile: {},
+          platforms: ["Instagram", "Email"],
+          platform_notes: { Instagram: "Keep it short", Email: "Can be longer" },
+        },
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<ProfileEditor />);
+  await screen.findByText("Voice");
+  fireEvent.click(screen.getByText("Advanced"));
+
+  const platformsInput = await screen.findByDisplayValue("Instagram, Email");
+  fireEvent.change(platformsInput, { target: { value: "Instagram" } });
+
+  fireEvent.click(screen.getByText("Save platform settings"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith("/api/profile/platform-settings", {
+      platforms: ["Instagram"],
+      platform_notes: { Instagram: "Keep it short" },
+    }),
+  );
+});
+
+test("saves visual guidelines as a list split from newline-separated text", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile") {
+      return Promise.resolve({ data: { voice_profile: {}, visual_prohibitions: ["Neon colors"] } });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<ProfileEditor />);
+  await screen.findByText("Voice");
+  fireEvent.click(screen.getByText("Advanced"));
+
+  const textarea = await screen.findByDisplayValue("Neon colors");
+  fireEvent.change(textarea, { target: { value: "Neon colors\nCluttered backgrounds" } });
+
+  fireEvent.click(screen.getByText("Save visual guidelines"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith("/api/profile/visual-guidelines", {
+      visual_prohibitions: ["Neon colors", "Cluttered backgrounds"],
+    }),
+  );
+});
+
+test("adds a template locally then saves the full list to the templates endpoint", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile") return Promise.resolve({ data: { voice_profile: {}, templates: [] } });
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<ProfileEditor />);
+  await screen.findByText("Voice");
+  fireEvent.click(screen.getByText("Advanced"));
+
+  fireEvent.change(await screen.findByPlaceholderText("Title (e.g. Event Announcement)"), {
+    target: { value: "Event Announcement" },
+  });
+  fireEvent.change(screen.getByPlaceholderText("Template content..."), {
+    target: { value: "Join us for {{event}} on {{date}}." },
+  });
+  fireEvent.click(screen.getByText("+ Add template"));
+
+  expect(await screen.findByText("Event Announcement")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("Save templates"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith("/api/profile/templates", {
+      templates: [{ title: "Event Announcement", content: "Join us for {{event}} on {{date}}." }],
+    }),
+  );
+});
+
+test("removes a recurring content entry before saving", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile") {
+      return Promise.resolve({
+        data: { voice_profile: {}, recurring_content: [{ title: "Weekly Verse", content: "John 3:16" }] },
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<ProfileEditor />);
+  await screen.findByText("Voice");
+  fireEvent.click(screen.getByText("Advanced"));
+
+  expect(await screen.findByText("Weekly Verse")).toBeInTheDocument();
+  fireEvent.click(screen.getByText("✕"));
+  expect(screen.queryByText("Weekly Verse")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("Save recurring content"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith("/api/profile/recurring-content", { recurring_content: [] }),
+  );
+});
+
+test("warns before switching tabs with unsaved voice edits, and respects Cancel", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile") return Promise.resolve({ data: { voice_profile: { persona_name: "Original" } } });
+    return Promise.resolve({ data: [] });
+  });
+
+  const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(false);
+
+  render(<ProfileEditor />);
+  await screen.findByText("Voice");
+
+  fireEvent.change(screen.getByDisplayValue("Original"), { target: { value: "Changed" } });
+  fireEvent.click(screen.getByText("Phrases"));
+
+  expect(confirmSpy).toHaveBeenCalled();
+  // Cancelled, so the tab did not actually switch.
+  expect(screen.getByDisplayValue("Changed")).toBeInTheDocument();
+  expect(screen.queryByText("Add a sample phrase")).not.toBeInTheDocument();
+
+  confirmSpy.mockRestore();
+});
+
+test("switches tabs freely once unsaved voice edits are saved", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile") return Promise.resolve({ data: { voice_profile: { persona_name: "Original" } } });
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+  const confirmSpy = jest.spyOn(window, "confirm");
+
+  render(<ProfileEditor />);
+  await screen.findByText("Voice");
+
+  fireEvent.change(screen.getByDisplayValue("Original"), { target: { value: "Changed" } });
+  fireEvent.click(screen.getByText("Save voice profile"));
+  await waitFor(() => expect(client.put).toHaveBeenCalled());
+  // The mocked GET always echoes back "Original" — waiting for it to
+  // reappear confirms the post-save refetch (and snapshot reset) landed.
+  await screen.findByDisplayValue("Original");
+
+  fireEvent.click(screen.getByText("Phrases"));
+  expect(confirmSpy).not.toHaveBeenCalled();
+  expect(await screen.findByText("Add a sample phrase")).toBeInTheDocument();
+
+  confirmSpy.mockRestore();
+});
+
 test("still renders the sub-ministry even if the overview fetch fails", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/profile") {
