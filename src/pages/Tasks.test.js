@@ -88,7 +88,7 @@ test("assigning a task to more than one person sends both ids", async () => {
   );
 });
 
-test("marking a task complete calls the complete endpoint with the right ministry header", async () => {
+test("marking a task complete opens a notes field, then calls the complete endpoint with the right ministry header", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/tasks") {
       return Promise.resolve({
@@ -102,10 +102,98 @@ test("marking a task complete calls the complete endpoint with the right ministr
   render(<Tasks />);
   fireEvent.click(await screen.findByText("✓ Done"));
 
+  const notesField = await screen.findByPlaceholderText("Add a note about how this was completed (optional)");
+  fireEvent.change(notesField, { target: { value: "Wrapped up early" } });
+  fireEvent.click(screen.getByText("Confirm complete"));
+
   await waitFor(() =>
     expect(client.put).toHaveBeenCalledWith(
       "/api/tasks/t1/complete",
-      null,
+      { notes: "Wrapped up early" },
+      expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
+    ),
+  );
+});
+
+test("completing a task without entering notes sends notes: undefined", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [{ _id: "t1", title: "Do the thing", status: "open", ministry_id: "ktm-test" }],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<Tasks />);
+  fireEvent.click(await screen.findByText("✓ Done"));
+  fireEvent.click(await screen.findByText("Confirm complete"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/tasks/t1/complete",
+      { notes: undefined },
+      expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
+    ),
+  );
+});
+
+test("cancelling the completion notes field leaves the task open", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [{ _id: "t1", title: "Do the thing", status: "open", ministry_id: "ktm-test" }],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<Tasks />);
+  fireEvent.click(await screen.findByText("✓ Done"));
+  await screen.findByText("Confirm complete");
+  fireEvent.click(screen.getByText("Cancel"));
+
+  expect(screen.queryByText("Confirm complete")).not.toBeInTheDocument();
+  expect(client.put).not.toHaveBeenCalled();
+});
+
+test("viewing a completed task shows a read-only detail view with a notes editor", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [
+          {
+            _id: "t1",
+            title: "Do the thing",
+            status: "done",
+            ministry_id: "ktm-test",
+            completed_at: "2026-06-01T12:00:00Z",
+            completion_notes: "Finished ahead of schedule",
+          },
+        ],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: {} });
+
+  render(<Tasks />);
+  fireEvent.click(await screen.findByText("Show completed"));
+  fireEvent.click(await screen.findByText("View"));
+
+  expect(await screen.findByText("Finished ahead of schedule")).toBeInTheDocument();
+  expect(screen.getByText(/Completed/)).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("Edit notes"));
+  const textarea = screen.getByDisplayValue("Finished ahead of schedule");
+  fireEvent.change(textarea, { target: { value: "Updated notes" } });
+  fireEvent.click(screen.getByText("Save"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/tasks/t1",
+      { completion_notes: "Updated notes" },
       expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
     ),
   );

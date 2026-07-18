@@ -94,6 +94,11 @@ const Tasks = () => {
   const [editForm, setEditForm] = useState(emptyForm);
   const [editSaving, setEditSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [completingTaskId, setCompletingTaskId] = useState(null);
+  const [completeNotesDraft, setCompleteNotesDraft] = useState("");
+  const [editingNotesTaskId, setEditingNotesTaskId] = useState(null);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [savingNotes, setSavingNotes] = useState(false);
 
   const fetchTasks = useCallback(
     async (mine) => {
@@ -265,6 +270,8 @@ const Tasks = () => {
   const cancelEdit = () => {
     setEditingTaskId(null);
     setEditForm(emptyForm);
+    setEditingNotesTaskId(null);
+    setNotesDraft("");
   };
 
   const handleSaveEdit = async (task) => {
@@ -299,14 +306,36 @@ const Tasks = () => {
     }
   };
 
-  const handleComplete = async (task) => {
+  const handleComplete = async (task, notes) => {
     try {
-      await client.put(`/api/tasks/${task._id}/complete`, null, {
-        headers: { "x-ministry-id": task.ministry_id },
-      });
+      await client.put(
+        `/api/tasks/${task._id}/complete`,
+        { notes: notes?.trim() || undefined },
+        { headers: { "x-ministry-id": task.ministry_id } },
+      );
+      setCompletingTaskId(null);
+      setCompleteNotesDraft("");
       await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
     } catch (err) {
       setError("Failed to complete task");
+    }
+  };
+
+  const handleSaveNotes = async (task) => {
+    setSavingNotes(true);
+    setError("");
+    try {
+      await client.put(
+        `/api/tasks/${task._id}`,
+        { completion_notes: notesDraft.trim() || undefined },
+        { headers: { "x-ministry-id": task.ministry_id } },
+      );
+      setEditingNotesTaskId(null);
+      await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
+    } catch (err) {
+      setError("Failed to save notes");
+    } finally {
+      setSavingNotes(false);
     }
   };
 
@@ -656,8 +685,160 @@ const Tasks = () => {
     </div>
   );
 
+  const renderDoneDetail = (task) => (
+    <div
+      key={task._id}
+      style={{
+        background: "var(--white)",
+        border: "1px solid var(--navy)",
+        borderRadius: "var(--border-radius-lg)",
+        padding: "14px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "10px",
+      }}
+    >
+      <div>
+        <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--charcoal)" }}>{task.title}</div>
+        {task.description && (
+          <div style={{ fontSize: "11px", color: "var(--gray-600)", marginTop: "4px" }}>{task.description}</div>
+        )}
+        <div style={{ fontSize: "10px", color: "var(--gray-500)", marginTop: "6px" }}>
+          Completed{" "}
+          {task.completed_at
+            ? new Date(task.completed_at).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })
+            : ""}
+        </div>
+      </div>
+
+      <div>
+        <label
+          style={{
+            display: "block",
+            fontSize: "10px",
+            color: "var(--gray-500)",
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+            marginBottom: "6px",
+          }}
+        >
+          Notes
+        </label>
+        {editingNotesTaskId === task._id ? (
+          <>
+            <textarea
+              value={notesDraft}
+              onChange={(e) => setNotesDraft(e.target.value)}
+              rows={3}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                border: "0.5px solid var(--gray-300)",
+                borderRadius: "var(--border-radius)",
+                fontSize: "12px",
+                resize: "vertical",
+              }}
+            />
+            <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+              <button
+                onClick={() => handleSaveNotes(task)}
+                disabled={savingNotes}
+                style={{
+                  padding: "5px 10px",
+                  background: "var(--navy)",
+                  color: "var(--white)",
+                  border: "none",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                }}
+              >
+                {savingNotes ? "Saving..." : "Save"}
+              </button>
+              <button
+                onClick={() => setEditingNotesTaskId(null)}
+                style={{
+                  padding: "5px 10px",
+                  background: "transparent",
+                  color: "var(--gray-600)",
+                  border: "0.5px solid var(--gray-300)",
+                  borderRadius: "var(--border-radius)",
+                  fontSize: "11px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: "12px", color: task.completion_notes ? "var(--charcoal)" : "var(--gray-500)" }}>
+              {task.completion_notes || "No notes added."}
+            </div>
+            <button
+              onClick={() => {
+                setEditingNotesTaskId(task._id);
+                setNotesDraft(task.completion_notes || "");
+              }}
+              style={{
+                marginTop: "6px",
+                padding: 0,
+                background: "transparent",
+                color: "var(--navy)",
+                border: "none",
+                fontSize: "11px",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              {task.completion_notes ? "Edit notes" : "Add notes"}
+            </button>
+          </>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: "8px" }}>
+        <button
+          onClick={() => handleReopen(task)}
+          style={{
+            padding: "6px 14px",
+            background: "transparent",
+            color: "var(--gray-600)",
+            border: "0.5px solid var(--gray-300)",
+            borderRadius: "var(--border-radius)",
+            fontSize: "12px",
+            cursor: "pointer",
+          }}
+        >
+          Reopen
+        </button>
+        <button
+          onClick={cancelEdit}
+          style={{
+            padding: "6px 14px",
+            background: "transparent",
+            color: "var(--gray-600)",
+            border: "0.5px solid var(--gray-300)",
+            borderRadius: "var(--border-radius)",
+            fontSize: "12px",
+            cursor: "pointer",
+          }}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+
   const renderTask = (task, { showAssignee } = {}) => {
-    if (editingTaskId === task._id) return renderEditForm(task);
+    if (editingTaskId === task._id) {
+      return task.status === "done" ? renderDoneDetail(task) : renderEditForm(task);
+    }
 
     const due = formatDue(task.due_date);
     return (
@@ -669,11 +850,15 @@ const Tasks = () => {
           borderLeft: `3px solid ${colorFor(task.ministry_id)}`,
           borderRadius: "var(--border-radius-lg)",
           padding: "14px",
+          opacity: task.status === "done" ? 0.6 : 1,
+        }}
+      >
+      <div
+        style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
           gap: "12px",
-          opacity: task.status === "done" ? 0.6 : 1,
         }}
       >
         <div
@@ -770,11 +955,14 @@ const Tasks = () => {
                 cursor: "pointer",
               }}
             >
-              Edit
+              {task.status === "done" ? "View" : "Edit"}
             </button>
-            {task.status !== "done" && (
+            {task.status !== "done" && completingTaskId !== task._id && (
               <button
-                onClick={() => handleComplete(task)}
+                onClick={() => {
+                  setCompletingTaskId(task._id);
+                  setCompleteNotesDraft("");
+                }}
                 style={{
                   padding: "5px 10px",
                   background: "var(--navy)",
@@ -899,6 +1087,59 @@ const Tasks = () => {
           </select>
         </div>
       </div>
+
+      {completingTaskId === task._id && (
+        <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "0.5px solid var(--gray-300)" }}>
+          <textarea
+            value={completeNotesDraft}
+            onChange={(e) => setCompleteNotesDraft(e.target.value)}
+            placeholder="Add a note about how this was completed (optional)"
+            rows={2}
+            style={{
+              width: "100%",
+              padding: "8px 12px",
+              border: "0.5px solid var(--gray-300)",
+              borderRadius: "var(--border-radius)",
+              fontSize: "12px",
+              resize: "vertical",
+            }}
+          />
+          <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+            <button
+              onClick={() => handleComplete(task, completeNotesDraft)}
+              style={{
+                padding: "5px 10px",
+                background: "var(--navy)",
+                color: "var(--white)",
+                border: "none",
+                borderRadius: "var(--border-radius)",
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
+            >
+              Confirm complete
+            </button>
+            <button
+              onClick={() => {
+                setCompletingTaskId(null);
+                setCompleteNotesDraft("");
+              }}
+              style={{
+                padding: "5px 10px",
+                background: "transparent",
+                color: "var(--gray-600)",
+                border: "0.5px solid var(--gray-300)",
+                borderRadius: "var(--border-radius)",
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
     );
   };
 
