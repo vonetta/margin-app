@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import NotificationBell from "./NotificationBell";
+import ChangePasswordModal from "./ChangePasswordModal";
 import { clickableDivProps } from "../utils/a11y";
 
 // Grouped by mental model rather than one flat list: land on Dashboard,
@@ -233,6 +234,7 @@ const Sidebar = () => {
         >
           {user?.name}
         </div>
+        <ChangePasswordModal />
         <div
           {...clickableDivProps(logout)}
           style={{
