@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import FlyerStyleWizard from "../components/FlyerStyleWizard";
@@ -16,6 +16,7 @@ const statusColors = {
 };
 
 const ContentStudio = () => {
+  const location = useLocation();
   const navigate = useNavigate();
   const { switchMinistry, ministry } = useAuth();
   const [tab, setTab] = useState("generate");
@@ -161,6 +162,19 @@ const ContentStudio = () => {
     setMessages(nextMessages);
     await sendTurn(nextMessages);
   };
+
+  // The Cmd+K quick-create menu navigates here with { openCreate: true }
+  // in route state — land on a blank Generate tab (in case a chat was
+  // already in progress), then clear the state so refreshing or coming
+  // back later doesn't repeat the reset.
+  useEffect(() => {
+    if (location.state?.openCreate) {
+      setTab("generate");
+      resetChat();
+      navigate(location.pathname, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const resetChat = () => {
     setMessages([]);

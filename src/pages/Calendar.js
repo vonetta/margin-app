@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import PageHeader from "../components/PageHeader";
 import { clickableDivProps } from "../utils/a11y";
+import { useUndoableDelete } from "../hooks/useUndoableDelete";
+import UndoToastStack from "../components/UndoToastStack";
 
 const WEEKDAYS = [
   { value: "SU", label: "Su" },
@@ -127,6 +130,8 @@ const startOfCalendarGrid = (monthDate) => {
 const FALLBACK_COLOR = "#4a5a6a";
 
 const Calendar = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { user, ministryId } = useAuth();
   const memberships = useMemo(() => user?.ministries || [], [user]);
   const colorFor = useCallback(
@@ -144,6 +149,18 @@ const Calendar = () => {
   const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
+
+  // The Cmd+K quick-create menu navigates here with { openCreate: true }
+  // in route state — pop the new-event form open, then clear the state
+  // so refreshing or coming back later doesn't reopen it.
+  useEffect(() => {
+    if (location.state?.openCreate) {
+      resetForm();
+      setShowForm(true);
+      navigate(location.pathname, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [form, setForm] = useState(emptyForm);
   const [recurrence, setRecurrence] = useState(emptyRecurrence);
   const [saving, setSaving] = useState(false);
@@ -154,6 +171,7 @@ const Calendar = () => {
   const [tasks, setTasks] = useState([]);
   const [editingEvent, setEditingEvent] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const { pending: pendingDeletes, scheduleDelete, undo: undoDelete, isPending: isPendingDelete } = useUndoableDelete();
 
   const gridStart = useMemo(() => startOfCalendarGrid(monthDate), [monthDate]);
   const gridDays = useMemo(
@@ -263,12 +281,13 @@ const Calendar = () => {
     const map = {};
     for (const occ of occurrences) {
       if (occ.status === "pending") continue;
+      if (isPendingDelete(occ._id)) continue;
       const key = new Date(occ.occurrence_start).toDateString();
       if (!map[key]) map[key] = [];
       map[key].push(occ);
     }
     return map;
-  }, [occurrences]);
+  }, [occurrences, isPendingDelete]);
 
   const tasksByDay = useMemo(() => {
     const map = {};
@@ -377,15 +396,16 @@ const Calendar = () => {
     }
   };
 
-  const handleDelete = async (id, mId) => {
-    try {
-      await client.delete(`/api/events/${id}`, { headers: { "x-ministry-id": mId } });
-      setConfirmDeleteId(null);
-      await fetchOccurrences();
-      setSelectedDay(null);
-    } catch (err) {
-      setError("Failed to delete event");
-    }
+  const handleDelete = (id, mId, title) => {
+    setConfirmDeleteId(null);
+    scheduleDelete(id, title || "Event", async () => {
+      try {
+        await client.delete(`/api/events/${id}`, { headers: { "x-ministry-id": mId } });
+        await fetchOccurrences();
+      } catch (err) {
+        setError("Failed to delete event");
+      }
+    });
   };
 
   const handleApprove = async (id, mId) => {
@@ -1053,7 +1073,7 @@ const Calendar = () => {
                     {confirmDeleteId === occ._id ? (
                       <>
                         <button
-                          onClick={() => handleDelete(occ._id, occ.ministry_id)}
+                          onClick={() => handleDelete(occ._id, occ.ministry_id, occ.title)}
                           style={{
                             padding: "3px 8px",
                             background: "#c0504d",
@@ -1414,6 +1434,7 @@ const Calendar = () => {
           </div>
         </div>
       )}
+      <UndoToastStack pending={pendingDeletes} onUndo={undoDelete} />
     </div>
   );
 };

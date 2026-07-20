@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Tasks from "./Tasks";
 
@@ -269,7 +269,18 @@ test("a shared task shows co-assignee chips outside the board, with a working re
   render(<Tasks />);
   expect(await screen.findByText("Tina Team")).toBeInTheDocument();
 
+  jest.useFakeTimers();
   fireEvent.click(screen.getByLabelText('Remove Tina Team from "Shared setup"'));
+
+  // No confirm step for removing a co-assignee — it hides immediately,
+  // with an undo toast as the safety net instead.
+  expect(screen.queryByText("Tina Team")).not.toBeInTheDocument();
+  expect(client.delete).not.toHaveBeenCalled();
+
+  act(() => {
+    jest.advanceTimersByTime(6000);
+  });
+  jest.useRealTimers();
 
   await waitFor(() =>
     expect(client.delete).toHaveBeenCalledWith(
@@ -406,7 +417,7 @@ test("cancel discards edits without saving", async () => {
   expect(client.put).not.toHaveBeenCalled();
 });
 
-test("deleting a task requires a confirm step before the DELETE call fires", async () => {
+test("deleting a task requires a confirm step, then defers the DELETE call behind an undo window", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/tasks") {
       return Promise.resolve({
@@ -421,13 +432,54 @@ test("deleting a task requires a confirm step before the DELETE call fires", asy
   fireEvent.click(await screen.findByText("✕"));
   expect(client.delete).not.toHaveBeenCalled();
 
-  fireEvent.click(await screen.findByText("Confirm"));
+  jest.useFakeTimers();
+  fireEvent.click(screen.getByText("Confirm"));
+
+  // Confirming hides the task and shows an undo toast right away, before
+  // the DELETE call fires.
+  expect(screen.getByText("Do the thing deleted")).toBeInTheDocument();
+  expect(screen.queryByText("Do the thing")).not.toBeInTheDocument();
+  expect(client.delete).not.toHaveBeenCalled();
+
+  act(() => {
+    jest.advanceTimersByTime(6000);
+  });
+  jest.useRealTimers();
+
   await waitFor(() =>
     expect(client.delete).toHaveBeenCalledWith(
       "/api/tasks/t1",
       expect.objectContaining({ headers: { "x-ministry-id": "ktm-test" } }),
     ),
   );
+});
+
+test("clicking Undo after deleting a task cancels the DELETE call and restores it", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/tasks") {
+      return Promise.resolve({
+        data: [{ _id: "t1", title: "Do the thing", status: "open", ministry_id: "ktm-test" }],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<Tasks />);
+  fireEvent.click(await screen.findByText("✕"));
+
+  jest.useFakeTimers();
+  fireEvent.click(screen.getByText("Confirm"));
+  expect(screen.getByText("Do the thing deleted")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("Undo"));
+  expect(screen.getByText("Do the thing")).toBeInTheDocument();
+  expect(screen.queryByText("Do the thing deleted")).not.toBeInTheDocument();
+
+  act(() => {
+    jest.advanceTimersByTime(10000);
+  });
+  jest.useRealTimers();
+  expect(client.delete).not.toHaveBeenCalled();
 });
 
 test("setting a weekly repeat sends the recurrence_rule", async () => {
@@ -764,7 +816,13 @@ describe("Everyone's tasks tab", () => {
     fireEvent.click(await screen.findByText("Everyone's tasks"));
     await screen.findAllByText(/Tina Team/);
 
+    jest.useFakeTimers();
     fireEvent.click(screen.getByLabelText('Remove Tina Team from "Set up check-in"'));
+
+    act(() => {
+      jest.advanceTimersByTime(6000);
+    });
+    jest.useRealTimers();
 
     await waitFor(() =>
       expect(client.delete).toHaveBeenCalledWith(

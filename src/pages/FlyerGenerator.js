@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import client from "../api/client";
 import PageHeader from "../components/PageHeader";
 import { clickableDivProps } from "../utils/a11y";
+import { useUndoableDelete } from "../hooks/useUndoableDelete";
+import UndoToastStack from "../components/UndoToastStack";
 
 // Loads the Google Maps Places script at most once, however many times
 // this component mounts. Resolves to null (never rejects) when no API
@@ -97,6 +99,7 @@ const emptyForm = {
 };
 
 const FlyerGenerator = () => {
+  const location = useLocation();
   const navigate = useNavigate();
   const [form, setForm] = useState(emptyForm);
 
@@ -125,6 +128,7 @@ const FlyerGenerator = () => {
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const { pending: pendingDeletes, scheduleDelete, undo: undoDelete, isPending: isPendingDelete } = useUndoableDelete();
   // null | "restored" (date/time came back from *_raw fields — just a
   // reminder to double-check before regenerating) | "legacy" (no *_raw
   // fields on this flyer, so date/time/rsvp_by are blank and need
@@ -371,16 +375,18 @@ const FlyerGenerator = () => {
     }
   };
 
-  const handleDeleteFlyer = async (id) => {
-    try {
-      await client.delete(`/api/flyers/${id}`);
-      setConfirmDeleteId(null);
-      if (flyer?._id === id) setFlyer(null);
-      if (editingFlyerId === id) handleCancelEdit();
-      await fetchHistory();
-    } catch (err) {
-      setError("Failed to delete flyer");
-    }
+  const handleDeleteFlyer = (id, title) => {
+    setConfirmDeleteId(null);
+    if (flyer?._id === id) setFlyer(null);
+    if (editingFlyerId === id) handleCancelEdit();
+    scheduleDelete(id, title || "Flyer", async () => {
+      try {
+        await client.delete(`/api/flyers/${id}`);
+        await fetchHistory();
+      } catch (err) {
+        setError("Failed to delete flyer");
+      }
+    });
   };
 
   // Clears edit mode and resets the form — the "start a brand-new flyer"
@@ -397,6 +403,18 @@ const FlyerGenerator = () => {
     setToneTouched(false);
     setEditNotice(null);
   };
+
+  // The Cmd+K quick-create menu navigates here with { openCreate: true }
+  // in route state — reset to a blank flyer (in case one was already
+  // being edited), then clear the state so refreshing or coming back
+  // later doesn't repeat the reset.
+  useEffect(() => {
+    if (location.state?.openCreate) {
+      handleCancelEdit();
+      navigate(location.pathname, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Regenerating from history now edits that same flyer in place (see
   // handleGenerate's editingFlyerId branch) instead of always creating a
@@ -1214,7 +1232,7 @@ const FlyerGenerator = () => {
               marginTop: "12px",
             }}
           >
-            {history.map((f) => (
+            {history.filter((f) => !isPendingDelete(f._id)).map((f) => (
               <div
                 key={f._id}
                 style={{
@@ -1238,7 +1256,7 @@ const FlyerGenerator = () => {
                 {confirmDeleteId === f._id ? (
                   <div style={{ display: "flex", gap: "6px" }}>
                     <button
-                      onClick={() => handleDeleteFlyer(f._id)}
+                      onClick={() => handleDeleteFlyer(f._id, f.title)}
                       style={{
                         flex: 1,
                         padding: "5px 8px",
@@ -1305,6 +1323,7 @@ const FlyerGenerator = () => {
           </div>
         )}
       </div>
+      <UndoToastStack pending={pendingDeletes} onUndo={undoDelete} />
     </div>
   );
 };

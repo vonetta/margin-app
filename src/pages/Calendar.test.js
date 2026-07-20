@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import Calendar from "./Calendar";
 
 jest.mock("../api/client", () => ({
@@ -439,7 +439,7 @@ test("clicking Edit on an event opens the form pre-filled and saves via PUT to t
   );
 });
 
-test("deleting an event requires a confirm step before the DELETE call fires", async () => {
+test("deleting an event requires a confirm step, then defers the DELETE call behind an undo window", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/events/expanded") {
       return Promise.resolve({
@@ -467,7 +467,17 @@ test("deleting an event requires a confirm step before the DELETE call fires", a
   fireEvent.click(await screen.findByText("Delete"));
   expect(client.delete).not.toHaveBeenCalled();
 
-  fireEvent.click(await screen.findByText("Confirm delete"));
+  jest.useFakeTimers();
+  fireEvent.click(screen.getByText("Confirm delete"));
+
+  expect(screen.getByText("One-off Event deleted")).toBeInTheDocument();
+  expect(client.delete).not.toHaveBeenCalled();
+
+  act(() => {
+    jest.advanceTimersByTime(6000);
+  });
+  jest.useRealTimers();
+
   await waitFor(() => expect(client.delete).toHaveBeenCalledWith("/api/events/evt1", expect.anything()));
 });
 

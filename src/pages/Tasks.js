@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import PageHeader from "../components/PageHeader";
 import { clickableDivProps } from "../utils/a11y";
+import { useUndoableDelete } from "../hooks/useUndoableDelete";
+import UndoToastStack from "../components/UndoToastStack";
 
 const FALLBACK_COLOR = "#4a5a6a";
 
@@ -60,6 +63,8 @@ const formatDue = (dateStr) => {
 };
 
 const Tasks = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { user, ministryId } = useAuth();
   const memberships = useMemo(() => user?.ministries || [], [user]);
   const colorFor = useCallback(
@@ -87,6 +92,18 @@ const Tasks = () => {
   const [dragOverColumn, setDragOverColumn] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
+
+  // The Cmd+K quick-create menu navigates here with { openCreate: true }
+  // in route state — pop the new-task form open, then clear the state so
+  // refreshing or coming back later doesn't reopen it.
+  useEffect(() => {
+    if (location.state?.openCreate) {
+      setShowForm(true);
+      navigate(location.pathname, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [similarTasks, setSimilarTasks] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -94,6 +111,7 @@ const Tasks = () => {
   const [editForm, setEditForm] = useState(emptyForm);
   const [editSaving, setEditSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const { pending: pendingDeletes, scheduleDelete, undo: undoDelete, isPending: isPendingDelete } = useUndoableDelete();
   const [completingTaskId, setCompletingTaskId] = useState(null);
   const [completeNotesDraft, setCompleteNotesDraft] = useState("");
   const [editingNotesTaskId, setEditingNotesTaskId] = useState(null);
@@ -356,15 +374,17 @@ const Tasks = () => {
   // row, the same as the board's handleRemoveFromBoard — no confirmation
   // step, matching that same lower-stakes precedent (unlike deleting
   // your OWN task, which does confirm).
-  const handleRemoveSibling = async (siblingTaskId, ministryId) => {
-    try {
-      await client.delete(`/api/tasks/${siblingTaskId}`, {
-        headers: { "x-ministry-id": ministryId },
-      });
-      await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
-    } catch (err) {
-      setError("Failed to remove that person from the task");
-    }
+  const handleRemoveSibling = (siblingTaskId, ministryId, siblingName) => {
+    scheduleDelete(siblingTaskId, siblingName || "Person", async () => {
+      try {
+        await client.delete(`/api/tasks/${siblingTaskId}`, {
+          headers: { "x-ministry-id": ministryId },
+        });
+        await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
+      } catch (err) {
+        setError("Failed to remove that person from the task");
+      }
+    });
   };
 
   const handleAddAssignee = async (task, userId) => {
@@ -391,24 +411,28 @@ const Tasks = () => {
     }
   };
 
-  const handleDelete = async (task) => {
-    try {
-      await client.delete(`/api/tasks/${task._id}`, {
-        headers: { "x-ministry-id": task.ministry_id },
-      });
-      setConfirmDeleteId(null);
-      if (editingTaskId === task._id) cancelEdit();
-      await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
-    } catch (err) {
-      setError("Failed to delete task");
-    }
+  const handleDelete = (task) => {
+    setConfirmDeleteId(null);
+    if (editingTaskId === task._id) cancelEdit();
+    scheduleDelete(task._id, task.title, async () => {
+      try {
+        await client.delete(`/api/tasks/${task._id}`, {
+          headers: { "x-ministry-id": task.ministry_id },
+        });
+        await Promise.all([refreshMine(), refreshAssignedByMe(), fetchTeamOverview()]);
+      } catch (err) {
+        setError("Failed to delete task");
+      }
+    });
   };
 
   // On-hold is still active work (blocked, not finished) — it stays
   // visible by default alongside "open," matching the "active" (open +
   // on_hold) semantic already used by the team-overview board. Only
   // "done" is hidden until the checkbox reveals it.
-  const visibleMine = myTasks.filter((t) => (showDone ? true : t.status !== "done"));
+  const visibleMine = myTasks
+    .filter((t) => !isPendingDelete(t._id))
+    .filter((t) => (showDone ? true : t.status !== "done"));
   const openCount = myTasks.filter((t) => t.status === "open").length;
 
   // Dropping (or picking from the keyboard-alternative select) a card
@@ -471,15 +495,17 @@ const Tasks = () => {
   // Removing someone from a shared task is just deleting their own row —
   // the other sibling documents (and the task itself, for them) are
   // untouched.
-  const handleRemoveFromBoard = async (task) => {
-    try {
-      await client.delete(`/api/tasks/${task._id}`, {
-        headers: { "x-ministry-id": task.ministry_id },
-      });
-      await fetchTeamOverview();
-    } catch (err) {
-      setError("Failed to remove this person from the task");
-    }
+  const handleRemoveFromBoard = (task, name) => {
+    scheduleDelete(task._id, name || "Person", async () => {
+      try {
+        await client.delete(`/api/tasks/${task._id}`, {
+          headers: { "x-ministry-id": task.ministry_id },
+        });
+        await fetchTeamOverview();
+      } catch (err) {
+        setError("Failed to remove this person from the task");
+      }
+    });
   };
 
   const renderEditForm = (task) => (
@@ -556,7 +582,7 @@ const Tasks = () => {
       </div>
       {(task.siblings?.length > 0 || team.length > 0) && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
-          {task.siblings?.map((s) => (
+          {task.siblings?.filter((s) => !isPendingDelete(s.task_id)).map((s) => (
             <span
               key={s.task_id}
               style={{
@@ -570,7 +596,7 @@ const Tasks = () => {
               {s.status === "done" ? "✓ " : s.status === "on_hold" ? "⏸ " : ""}
               {s.name}
               <span
-                {...clickableDivProps(() => handleRemoveSibling(s.task_id, task.ministry_id))}
+                {...clickableDivProps(() => handleRemoveSibling(s.task_id, task.ministry_id, s.name))}
                 aria-label={`Remove ${s.name} from "${task.title}"`}
                 style={{ marginLeft: "4px", cursor: "pointer" }}
               >
@@ -913,7 +939,7 @@ const Tasks = () => {
           </div>
           {task.siblings?.length > 0 && (
             <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "6px" }}>
-              {task.siblings.map((s) => (
+              {task.siblings.filter((s) => !isPendingDelete(s.task_id)).map((s) => (
                 <span
                   key={s.task_id}
                   style={{
@@ -929,7 +955,7 @@ const Tasks = () => {
                   <span
                     {...clickableDivProps((e) => {
                       e?.stopPropagation?.();
-                      handleRemoveSibling(s.task_id, task.ministry_id);
+                      handleRemoveSibling(s.task_id, task.ministry_id, s.name);
                     })}
                     aria-label={`Remove ${s.name} from "${task.title}"`}
                     style={{ marginLeft: "4px", cursor: "pointer" }}
@@ -1421,7 +1447,7 @@ const Tasks = () => {
               You haven't assigned any tasks yet.
             </div>
           )}
-          {assignedByMe.map((t) => renderTask(t, { showAssignee: true }))}
+          {assignedByMe.filter((t) => !isPendingDelete(t._id)).map((t) => renderTask(t, { showAssignee: true }))}
         </div>
       )}
 
@@ -1621,9 +1647,9 @@ const Tasks = () => {
                                 </span>
                               )}
                             </div>
-                            {siblings.length > 0 && (
+                            {siblings.filter((s) => !isPendingDelete(s._id)).length > 0 && (
                               <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "6px" }}>
-                                {siblings.map((s) => (
+                                {siblings.filter((s) => !isPendingDelete(s._id)).map((s) => (
                                   <span
                                     key={s._id}
                                     style={{
@@ -1637,7 +1663,7 @@ const Tasks = () => {
                                     {s.status === "done" ? "✓ " : s.status === "on_hold" ? "⏸ " : ""}
                                     {nameById[s.assigned_to] || "Someone"}
                                     <span
-                                      {...clickableDivProps(() => handleRemoveFromBoard(s))}
+                                      {...clickableDivProps(() => handleRemoveFromBoard(s, nameById[s.assigned_to]))}
                                       aria-label={`Remove ${nameById[s.assigned_to] || "them"} from "${t.title}"`}
                                       style={{ marginLeft: "4px", cursor: "pointer" }}
                                     >
@@ -1855,6 +1881,7 @@ const Tasks = () => {
           })()}
         </div>
       )}
+      <UndoToastStack pending={pendingDeletes} onUndo={undoDelete} />
     </div>
   );
 };

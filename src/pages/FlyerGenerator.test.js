@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import FlyerGenerator from "./FlyerGenerator";
 
 jest.mock("../api/client", () => ({
@@ -320,7 +320,7 @@ test("disables the collage layout until a host or speaker photo is selected", as
   expect(screen.getByText("Scattered photo cards")).toBeInTheDocument();
 });
 
-test("deleting a flyer requires a confirm step before the DELETE call fires", async () => {
+test("deleting a flyer requires a confirm step, then defers the DELETE call behind an undo window", async () => {
   client.delete.mockResolvedValue({ data: { deleted: true } });
 
   render(<FlyerGenerator />);
@@ -329,7 +329,17 @@ test("deleting a flyer requires a confirm step before the DELETE call fires", as
   fireEvent.click(screen.getByText("✕ Delete"));
   expect(client.delete).not.toHaveBeenCalled();
 
+  jest.useFakeTimers();
   fireEvent.click(screen.getByText("Confirm"));
+
+  expect(screen.getByText("Worship Intensive deleted")).toBeInTheDocument();
+  expect(client.delete).not.toHaveBeenCalled();
+
+  act(() => {
+    jest.advanceTimersByTime(6000);
+  });
+  jest.useRealTimers();
+
   await waitFor(() => expect(client.delete).toHaveBeenCalledWith("/api/flyers/f1"));
 });
 
