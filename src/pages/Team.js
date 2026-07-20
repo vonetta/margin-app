@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
 import PageHeader from "../components/PageHeader";
+import { useUndoableDelete } from "../hooks/useUndoableDelete";
+import UndoToastStack from "../components/UndoToastStack";
 
 const ROLES = [
   { value: "admin", label: "Admin", desc: "Full access — manages the ministry, team roles, and approvals" },
@@ -26,6 +28,8 @@ const Team = () => {
   const [inviteForm, setInviteForm] = useState(emptyInviteForm);
   const [invitingSaving, setInvitingSaving] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [search, setSearch] = useState("");
+  const { pending: pendingDeletes, scheduleDelete, undo: undoDelete, isPending: isPendingDelete } = useUndoableDelete();
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -84,13 +88,15 @@ const Team = () => {
     }
   };
 
-  const handleRevoke = async (invite) => {
-    try {
-      await client.delete(`/api/invites/${invite._id}`);
-      setInvites((prev) => prev.filter((i) => i._id !== invite._id));
-    } catch (err) {
-      setError("Failed to revoke invite");
-    }
+  const handleRevoke = (invite) => {
+    scheduleDelete(invite._id, invite.name || invite.email, async () => {
+      try {
+        await client.delete(`/api/invites/${invite._id}`);
+        setInvites((prev) => prev.filter((i) => i._id !== invite._id));
+      } catch (err) {
+        setError("Failed to revoke invite");
+      }
+    });
   };
 
   const handleCopyLink = (invite) => {
@@ -226,8 +232,36 @@ const Team = () => {
         <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>Loading...</div>
       ) : (
         <>
+          {team.length > 0 && (
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or email..."
+              style={{
+                width: "100%",
+                maxWidth: "640px",
+                padding: "10px 12px",
+                border: "0.5px solid var(--gray-300)",
+                borderRadius: "var(--border-radius)",
+                fontSize: "13px",
+                marginBottom: "16px",
+              }}
+            />
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxWidth: "640px" }}>
-            {team.map((member) => (
+            {(() => {
+              const q = search.trim().toLowerCase();
+              const filteredTeam = q
+                ? team.filter((m) => [m.name, m.email].some((f) => (f || "").toLowerCase().includes(q)))
+                : team;
+              if (filteredTeam.length === 0) {
+                return (
+                  <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
+                    No one matches "{search}".
+                  </div>
+                );
+              }
+              return filteredTeam.map((member) => (
               <div
                 key={member._id}
                 style={{
@@ -277,7 +311,8 @@ const Team = () => {
                   ))}
                 </select>
               </div>
-            ))}
+              ));
+            })()}
           </div>
 
           {invites.length > 0 && (
@@ -295,7 +330,7 @@ const Team = () => {
                 Pending invites
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {invites.map((invite) => (
+                {invites.filter((invite) => !isPendingDelete(invite._id)).map((invite) => (
                   <div
                     key={invite._id}
                     style={{
@@ -368,6 +403,7 @@ const Team = () => {
           )}
         </>
       )}
+      <UndoToastStack pending={pendingDeletes} onUndo={undoDelete} />
     </div>
   );
 };

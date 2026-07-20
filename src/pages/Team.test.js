@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import Team from "./Team";
 
 jest.mock("../api/client", () => ({
@@ -106,6 +106,19 @@ test("pressing Enter in the email field sends the invite without clicking the bu
   );
 });
 
+test("searches the roster by name or email", async () => {
+  render(<Team />);
+  await screen.findByText("Alex Admin");
+  expect(screen.getByText("Tina Team")).toBeInTheDocument();
+
+  fireEvent.change(screen.getByPlaceholderText("Search by name or email..."), {
+    target: { value: "tina" },
+  });
+
+  expect(screen.queryByText("Alex Admin")).not.toBeInTheDocument();
+  expect(screen.getByText("Tina Team")).toBeInTheDocument();
+});
+
 test("revoking an invite removes it from the pending list", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/ministry/team") return Promise.resolve({ data: [] });
@@ -129,10 +142,20 @@ test("revoking an invite removes it from the pending list", async () => {
   render(<Team />);
   expect(await screen.findByText("New Person")).toBeInTheDocument();
 
+  jest.useFakeTimers();
   fireEvent.click(screen.getByText("Revoke"));
 
+  // Revoking hides the invite and shows an undo toast right away, before
+  // the DELETE call fires.
+  expect(screen.queryByText("New Person")).not.toBeInTheDocument();
+  expect(client.delete).not.toHaveBeenCalled();
+
+  act(() => {
+    jest.advanceTimersByTime(6000);
+  });
+  jest.useRealTimers();
+
   await waitFor(() => expect(client.delete).toHaveBeenCalledWith("/api/invites/inv1"));
-  await waitFor(() => expect(screen.queryByText("New Person")).not.toBeInTheDocument());
 });
 
 test("shows an error if the role change is rejected (e.g. last admin)", async () => {
