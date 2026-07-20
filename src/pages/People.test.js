@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import People from "./People";
 
 jest.mock("../api/client", () => ({
@@ -55,7 +55,7 @@ test("shows a no-match message when the search finds nobody", async () => {
   expect(await screen.findByText(/No one matches "nonexistent"/)).toBeInTheDocument();
 });
 
-test("deleting a person requires a confirm step", async () => {
+test("deleting a person requires a confirm step, then defers the DELETE call behind an undo window", async () => {
   render(<People />);
   const person = await screen.findByText("Apostle Khy Traylor");
   fireEvent.click(person);
@@ -63,7 +63,17 @@ test("deleting a person requires a confirm step", async () => {
   fireEvent.click(await screen.findByText("Delete"));
   expect(client.delete).not.toHaveBeenCalled();
 
+  jest.useFakeTimers();
   fireEvent.click(screen.getByText("Confirm delete"));
+
+  expect(screen.getByText("Apostle Khy Traylor deleted")).toBeInTheDocument();
+  expect(client.delete).not.toHaveBeenCalled();
+
+  act(() => {
+    jest.advanceTimersByTime(6000);
+  });
+  jest.useRealTimers();
+
   await waitFor(() => expect(client.delete).toHaveBeenCalledWith("/api/people/p1"));
 });
 

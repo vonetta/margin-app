@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import Communications from "./Communications";
 
 jest.mock("../api/client", () => ({
@@ -108,7 +108,7 @@ test("editing a saved draft's subject and body calls PUT with the updated fields
   expect(await screen.findByText("New Subject")).toBeInTheDocument();
 });
 
-test("deleting a saved draft requires a confirm step before the DELETE call fires", async () => {
+test("deleting a saved draft requires a confirm step, then defers the DELETE call behind an undo window", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/people") return Promise.resolve({ data: [] });
     if (url === "/api/communications/drafts") {
@@ -126,7 +126,17 @@ test("deleting a saved draft requires a confirm step before the DELETE call fire
   fireEvent.click(await screen.findByText("✕ Delete"));
   expect(client.delete).not.toHaveBeenCalled();
 
-  fireEvent.click(await screen.findByText("Confirm delete"));
+  jest.useFakeTimers();
+  fireEvent.click(screen.getByText("Confirm delete"));
+
+  expect(screen.getByText("An Invitation deleted")).toBeInTheDocument();
+  expect(client.delete).not.toHaveBeenCalled();
+
+  act(() => {
+    jest.advanceTimersByTime(6000);
+  });
+  jest.useRealTimers();
+
   await waitFor(() => expect(client.delete).toHaveBeenCalledWith("/api/communications/drafts/d1"));
 });
 

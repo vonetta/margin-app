@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import ProfileEditor from "./ProfileEditor";
 
 jest.mock("../api/client", () => ({
@@ -119,8 +119,53 @@ test("lists connected social accounts and disconnects one after confirming", asy
   fireEvent.click(screen.getByText("Disconnect"));
   expect(client.delete).not.toHaveBeenCalled();
 
+  jest.useFakeTimers();
   fireEvent.click(screen.getByText("Confirm"));
+
+  expect(screen.getByText("KTM Main Page deleted")).toBeInTheDocument();
+  expect(client.delete).not.toHaveBeenCalled();
+
+  act(() => {
+    jest.advanceTimersByTime(6000);
+  });
+  jest.useRealTimers();
+
   await waitFor(() => expect(client.delete).toHaveBeenCalledWith("/api/social/accounts/acct1"));
+});
+
+test("removing a sample phrase hides it immediately, then defers the DELETE call behind an undo window", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/profile") {
+      return Promise.resolve({
+        data: { voice_profile: { sample_phrases: ["Secure your spot today"] } },
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.delete.mockResolvedValue({ data: {} });
+
+  render(<ProfileEditor />);
+  await screen.findByText("Voice");
+  fireEvent.click(screen.getByText("Phrases"));
+
+  expect(await screen.findByText("Secure your spot today")).toBeInTheDocument();
+
+  jest.useFakeTimers();
+  fireEvent.click(screen.getByText("✕"));
+
+  expect(screen.queryByText("Secure your spot today")).not.toBeInTheDocument();
+  expect(client.delete).not.toHaveBeenCalled();
+
+  act(() => {
+    jest.advanceTimersByTime(6000);
+  });
+  jest.useRealTimers();
+
+  await waitFor(() =>
+    expect(client.delete).toHaveBeenCalledWith("/api/profile/phrases", {
+      data: { phrase: "Secure your spot today" },
+    }),
+  );
 });
 
 test("shows a status message and lands on the Social tab after a Meta redirect back", async () => {

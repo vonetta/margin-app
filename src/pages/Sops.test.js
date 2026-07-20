@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import Sops from "./Sops";
 
 jest.mock("../api/client", () => ({
@@ -159,7 +159,7 @@ test("edits an SOP draft's title and content before saving", async () => {
   );
 });
 
-test("deleting an SOP draft requires a confirm step", async () => {
+test("deleting an SOP draft requires a confirm step, then defers the DELETE call behind an undo window", async () => {
   client.get.mockImplementation((url) => {
     if (url === "/api/profile/sops/drafts") return Promise.resolve({ data: [pendingDraft] });
     return Promise.resolve({ data: [] });
@@ -171,7 +171,17 @@ test("deleting an SOP draft requires a confirm step", async () => {
   fireEvent.click(screen.getByText("Delete"));
   expect(client.delete).not.toHaveBeenCalled();
 
+  jest.useFakeTimers();
   fireEvent.click(screen.getByText("Confirm delete"));
+
+  expect(screen.getByText("Sunday Setup deleted")).toBeInTheDocument();
+  expect(client.delete).not.toHaveBeenCalled();
+
+  act(() => {
+    jest.advanceTimersByTime(6000);
+  });
+  jest.useRealTimers();
+
   await waitFor(() =>
     expect(client.delete).toHaveBeenCalledWith("/api/profile/sops/drafts/sop1"),
   );

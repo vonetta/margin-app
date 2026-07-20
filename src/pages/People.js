@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
 import PageHeader from "../components/PageHeader";
 import { clickableDivProps } from "../utils/a11y";
+import { useUndoableDelete } from "../hooks/useUndoableDelete";
+import UndoToastStack from "../components/UndoToastStack";
 
 const ROLES = ["host", "speaker", "leader", "member", "staff"];
 
@@ -75,6 +77,7 @@ const People = () => {
   const [uploading, setUploading] = useState(false);
   const [search, setSearch] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const { pending: pendingDeletes, scheduleDelete, undo: undoDelete, isPending: isPendingDelete } = useUndoableDelete();
 
   const fetchPeople = useCallback(async () => {
     setLoading(true);
@@ -136,21 +139,24 @@ const People = () => {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (selected === "new" || !selected) return;
     if (!confirmDelete) {
       setConfirmDelete(true);
       return;
     }
-    try {
-      await client.delete(`/api/people/${selected._id}`);
-      setSelected(null);
-      setForm(emptyForm);
-      setConfirmDelete(false);
-      await fetchPeople();
-    } catch (err) {
-      setError("Failed to delete");
-    }
+    const person = selected;
+    setSelected(null);
+    setForm(emptyForm);
+    setConfirmDelete(false);
+    scheduleDelete(person._id, person.name, async () => {
+      try {
+        await client.delete(`/api/people/${person._id}`);
+        await fetchPeople();
+      } catch (err) {
+        setError("Failed to delete");
+      }
+    });
   };
 
   const handleHeadshotUpload = async (e) => {
@@ -233,11 +239,12 @@ const People = () => {
           ) : (
             (() => {
               const q = search.trim().toLowerCase();
+              const visible = people.filter((p) => !isPendingDelete(p._id));
               const filtered = q
-                ? people.filter((p) =>
+                ? visible.filter((p) =>
                     [p.name, p.title, p.email].some((f) => (f || "").toLowerCase().includes(q)),
                   )
-                : people;
+                : visible;
 
               if (filtered.length === 0) {
                 return (
@@ -538,6 +545,7 @@ const People = () => {
           </div>
         )}
       </div>
+      <UndoToastStack pending={pendingDeletes} onUndo={undoDelete} />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import SocialQueue from "./SocialQueue";
 
 jest.mock("../api/client", () => ({
@@ -24,6 +24,39 @@ beforeEach(() => {
     if (url === "/api/social-posts") return Promise.resolve({ data: [] });
     return Promise.resolve({ data: [] });
   });
+});
+
+test("deleting a post requires a confirm step, then defers the DELETE call behind an undo window", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/social/accounts") return Promise.resolve({ data: [] });
+    if (url === "/api/social-posts") {
+      return Promise.resolve({
+        data: [{ _id: "post1", caption: "Join us Sunday!", status: "rejected" }],
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
+  client.delete.mockResolvedValue({ data: {} });
+
+  render(<SocialQueue />);
+  fireEvent.click(await screen.findByText("Rejected"));
+  await screen.findByText("Join us Sunday!");
+
+  fireEvent.click(screen.getByText("✕"));
+  expect(client.delete).not.toHaveBeenCalled();
+
+  jest.useFakeTimers();
+  fireEvent.click(screen.getByText("Confirm delete"));
+
+  expect(screen.getByText("Join us Sunday! deleted")).toBeInTheDocument();
+  expect(client.delete).not.toHaveBeenCalled();
+
+  act(() => {
+    jest.advanceTimersByTime(6000);
+  });
+  jest.useRealTimers();
+
+  await waitFor(() => expect(client.delete).toHaveBeenCalledWith("/api/social-posts/post1"));
 });
 
 test("lists pending posts and lets an admin pick targets, schedule, and approve", async () => {

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
 import PageHeader from "../components/PageHeader";
 import { clickableDivProps } from "../utils/a11y";
+import { useUndoableDelete } from "../hooks/useUndoableDelete";
+import UndoToastStack from "../components/UndoToastStack";
 
 const EMAIL_TYPES = [
   { value: "invitation", label: "Invitation", desc: "Invite a prospective speaker/contributor" },
@@ -30,6 +32,7 @@ const Communications = () => {
   const [drafts, setDrafts] = useState([]);
   const [selectedDraft, setSelectedDraft] = useState(null);
   const [confirmDeleteDraft, setConfirmDeleteDraft] = useState(false);
+  const { pending: pendingDeletes, scheduleDelete, undo: undoDelete, isPending: isPendingDelete } = useUndoableDelete();
   const [loadingDrafts, setLoadingDrafts] = useState(false);
   const [editingDraft, setEditingDraft] = useState(false);
   const [editSubject, setEditSubject] = useState("");
@@ -137,15 +140,17 @@ const Communications = () => {
     }
   };
 
-  const handleDeleteDraft = async (id) => {
-    try {
-      await client.delete(`/api/communications/drafts/${id}`);
-      setConfirmDeleteDraft(false);
-      if (selectedDraft?._id === id) setSelectedDraft(null);
-      await fetchDrafts();
-    } catch (err) {
-      setError("Failed to delete draft");
-    }
+  const handleDeleteDraft = (id, subject) => {
+    setConfirmDeleteDraft(false);
+    if (selectedDraft?._id === id) setSelectedDraft(null);
+    scheduleDelete(id, subject || "Draft", async () => {
+      try {
+        await client.delete(`/api/communications/drafts/${id}`);
+        await fetchDrafts();
+      } catch (err) {
+        setError("Failed to delete draft");
+      }
+    });
   };
 
   const startEditDraft = () => {
@@ -620,7 +625,7 @@ const Communications = () => {
                 No email drafts yet. Generate one to get started.
               </div>
             ) : (
-              drafts.map((draft) => {
+              drafts.filter((draft) => !isPendingDelete(draft._id)).map((draft) => {
                 const isSelected = selectedDraft?._id === draft._id;
                 return (
                   <div
@@ -830,7 +835,7 @@ const Communications = () => {
                 {confirmDeleteDraft ? (
                   <>
                     <button
-                      onClick={() => handleDeleteDraft(selectedDraft._id)}
+                      onClick={() => handleDeleteDraft(selectedDraft._id, selectedDraft.subject)}
                       style={{
                         padding: "8px 16px",
                         background: "#c0504d",
@@ -880,6 +885,7 @@ const Communications = () => {
           )}
         </div>
       )}
+      <UndoToastStack pending={pendingDeletes} onUndo={undoDelete} />
     </div>
   );
 };

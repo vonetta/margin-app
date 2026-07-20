@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import PageHeader from "../components/PageHeader";
+import { useUndoableDelete } from "../hooks/useUndoableDelete";
+import UndoToastStack from "../components/UndoToastStack";
 
 const labelStyle = {
   display: "block",
@@ -51,6 +53,7 @@ const Sops = () => {
   const [editSopTitle, setEditSopTitle] = useState("");
   const [editSopContent, setEditSopContent] = useState("");
   const [confirmDeleteSopId, setConfirmDeleteSopId] = useState(null);
+  const { pending: pendingDeletes, scheduleDelete, undo: undoDelete, isPending: isPendingDelete } = useUndoableDelete();
   const [rejectingSopId, setRejectingSopId] = useState(null);
   const [rejectNotes, setRejectNotes] = useState("");
   const [exportingSopId, setExportingSopId] = useState(null);
@@ -160,14 +163,16 @@ const Sops = () => {
     }
   };
 
-  const handleDeleteSop = async (id) => {
-    try {
-      await client.delete(`/api/profile/sops/drafts/${id}`);
-      setSopDrafts((prev) => prev.filter((d) => d._id !== id));
-      setConfirmDeleteSopId(null);
-    } catch (err) {
-      setError("Failed to delete SOP draft");
-    }
+  const handleDeleteSop = (id, title) => {
+    setConfirmDeleteSopId(null);
+    scheduleDelete(id, title || "SOP", async () => {
+      try {
+        await client.delete(`/api/profile/sops/drafts/${id}`);
+        setSopDrafts((prev) => prev.filter((d) => d._id !== id));
+      } catch (err) {
+        setError("Failed to delete SOP draft");
+      }
+    });
   };
 
   // The export route requires the Bearer auth header, so a plain
@@ -368,6 +373,7 @@ const Sops = () => {
         ) : (
           sopDrafts
             .filter((d) => d.status === sopStatusFilter)
+            .filter((d) => !isPendingDelete(d._id))
             .map((draft) => (
               <div key={draft._id} style={cardStyle}>
                 {editingSopId === draft._id ? (
@@ -498,7 +504,7 @@ const Sops = () => {
                       {confirmDeleteSopId === draft._id ? (
                         <>
                           <button
-                            onClick={() => handleDeleteSop(draft._id)}
+                            onClick={() => handleDeleteSop(draft._id, draft.title)}
                             style={{
                               padding: "5px 12px",
                               background: "#c0504d",
@@ -590,6 +596,7 @@ const Sops = () => {
           </div>
         )}
       </div>
+      <UndoToastStack pending={pendingDeletes} onUndo={undoDelete} />
     </div>
   );
 };

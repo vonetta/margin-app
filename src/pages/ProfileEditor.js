@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import PageHeader from "../components/PageHeader";
+import { useUndoableDelete } from "../hooks/useUndoableDelete";
+import UndoToastStack from "../components/UndoToastStack";
 
 const REGISTER_KEYS = ["formal", "warm", "energetic"];
 
@@ -57,6 +59,7 @@ const ProfileEditor = () => {
   const [connectingSocial, setConnectingSocial] = useState(false);
   const [socialStatus, setSocialStatus] = useState(null);
   const [confirmDisconnectId, setConfirmDisconnectId] = useState(null);
+  const { pending: pendingDeletes, scheduleDelete, undo: undoDelete, isPending: isPendingDelete } = useUndoableDelete();
 
   const membership = user?.ministries?.find(
     (m) => m.ministry_id === ministryId,
@@ -131,14 +134,16 @@ const ProfileEditor = () => {
     }
   };
 
-  const handleDisconnectSocial = async (id) => {
-    try {
-      await client.delete(`/api/social/accounts/${id}`);
-      setConfirmDisconnectId(null);
-      await fetchSocialAccounts();
-    } catch (err) {
-      setError("Failed to disconnect account");
-    }
+  const handleDisconnectSocial = (id, label) => {
+    setConfirmDisconnectId(null);
+    scheduleDelete(id, label || "Account", async () => {
+      try {
+        await client.delete(`/api/social/accounts/${id}`);
+        await fetchSocialAccounts();
+      } catch (err) {
+        setError("Failed to disconnect account");
+      }
+    });
   };
 
   const createSubMinistry = async () => {
@@ -292,14 +297,16 @@ const ProfileEditor = () => {
     }
   };
 
-  const removePhrase = async (phrase) => {
-    try {
-      await client.delete("/api/profile/phrases", { data: { phrase } });
-      flash("Phrase removed");
-      await fetchProfile();
-    } catch (err) {
-      setError("Failed to remove phrase");
-    }
+  const removePhrase = (phrase) => {
+    const label = phrase.length > 30 ? `${phrase.slice(0, 30)}…` : phrase;
+    scheduleDelete(phrase, label, async () => {
+      try {
+        await client.delete("/api/profile/phrases", { data: { phrase } });
+        await fetchProfile();
+      } catch (err) {
+        setError("Failed to remove phrase");
+      }
+    });
   };
 
   const platformNames = platformsList
@@ -450,6 +457,8 @@ const ProfileEditor = () => {
   }
 
   const phrases = profile.voice_profile?.sample_phrases || [];
+  const visiblePhrases = phrases.filter((p) => !isPendingDelete(p));
+  const visibleSocialAccounts = socialAccounts.filter((a) => !isPendingDelete(a._id));
   const feedbackLog = (profile.sops || []).filter((s) =>
     (s.tags || []).includes("feedback"),
   );
@@ -663,13 +672,13 @@ const ProfileEditor = () => {
           )}
 
           <div style={cardStyle}>
-            <label style={labelStyle}>Sample phrases ({phrases.length})</label>
-            {phrases.length === 0 ? (
+            <label style={labelStyle}>Sample phrases ({visiblePhrases.length})</label>
+            {visiblePhrases.length === 0 ? (
               <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
                 No phrases yet.
               </div>
             ) : (
-              phrases.map((phrase, i) => (
+              visiblePhrases.map((phrase, i) => (
                 <div
                   key={i}
                   style={{
@@ -679,7 +688,7 @@ const ProfileEditor = () => {
                     gap: "12px",
                     padding: "10px 0",
                     borderBottom:
-                      i < phrases.length - 1
+                      i < visiblePhrases.length - 1
                         ? "0.5px solid var(--gray-300)"
                         : "none",
                     fontSize: "12px",
@@ -1229,16 +1238,16 @@ const ProfileEditor = () => {
 
           <div style={cardStyle}>
             <label style={labelStyle}>
-              Connected accounts ({socialAccounts.length})
+              Connected accounts ({visibleSocialAccounts.length})
             </label>
             {loadingSocial ? (
               <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>Loading...</div>
-            ) : socialAccounts.length === 0 ? (
+            ) : visibleSocialAccounts.length === 0 ? (
               <div style={{ fontSize: "12px", color: "var(--gray-500)" }}>
                 Nothing connected yet.
               </div>
             ) : (
-              socialAccounts.map((acct, i) => (
+              visibleSocialAccounts.map((acct, i) => (
                 <div
                   key={acct._id}
                   style={{
@@ -1246,7 +1255,7 @@ const ProfileEditor = () => {
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    borderBottom: i < socialAccounts.length - 1 ? "0.5px solid var(--gray-300)" : "none",
+                    borderBottom: i < visibleSocialAccounts.length - 1 ? "0.5px solid var(--gray-300)" : "none",
                   }}
                 >
                   <div>
@@ -1266,7 +1275,7 @@ const ProfileEditor = () => {
                   {confirmDisconnectId === acct._id ? (
                     <div style={{ display: "flex", gap: "6px" }}>
                       <button
-                        onClick={() => handleDisconnectSocial(acct._id)}
+                        onClick={() => handleDisconnectSocial(acct._id, acct.page_name)}
                         style={{
                           padding: "5px 10px",
                           background: "#c0504d",
@@ -1314,6 +1323,7 @@ const ProfileEditor = () => {
         </div>
       )}
 
+      <UndoToastStack pending={pendingDeletes} onUndo={undoDelete} />
     </div>
   );
 };

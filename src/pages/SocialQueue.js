@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import client from "../api/client";
 import PageHeader from "../components/PageHeader";
+import { useUndoableDelete } from "../hooks/useUndoableDelete";
+import UndoToastStack from "../components/UndoToastStack";
 
 const TABS = [
   { key: "pending_approval", label: "Pending approval" },
@@ -26,6 +28,7 @@ const SocialQueue = () => {
   const [saving, setSaving] = useState(false);
   const [confirmRejectId, setConfirmRejectId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const { pending: pendingDeletes, scheduleDelete, undo: undoDelete, isPending: isPendingDelete } = useUndoableDelete();
 
   const fetchPosts = useCallback(async () => {
     setLoading(true);
@@ -104,14 +107,17 @@ const SocialQueue = () => {
     }
   };
 
-  const handleDelete = async (postId) => {
-    try {
-      await client.delete(`/api/social-posts/${postId}`);
-      setConfirmDeleteId(null);
-      await fetchPosts();
-    } catch (err) {
-      setError("Failed to delete post");
-    }
+  const handleDelete = (postId, caption) => {
+    setConfirmDeleteId(null);
+    const label = caption?.length > 30 ? `${caption.slice(0, 30)}…` : caption || "Post";
+    scheduleDelete(postId, label, async () => {
+      try {
+        await client.delete(`/api/social-posts/${postId}`);
+        await fetchPosts();
+      } catch (err) {
+        setError("Failed to delete post");
+      }
+    });
   };
 
   const accountLabel = (id) => accounts.find((a) => a._id === id)?.page_name || "Unknown account";
@@ -180,7 +186,7 @@ const SocialQueue = () => {
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "14px" }}>
-          {posts.map((post) => (
+          {posts.filter((post) => !isPendingDelete(post._id)).map((post) => (
             <div
               key={post._id}
               style={{
@@ -377,7 +383,7 @@ const SocialQueue = () => {
                     (confirmDeleteId === post._id ? (
                       <>
                         <button
-                          onClick={() => handleDelete(post._id)}
+                          onClick={() => handleDelete(post._id, post.caption)}
                           style={{
                             padding: "6px 14px",
                             background: "#c0504d",
@@ -434,6 +440,7 @@ const SocialQueue = () => {
           ))}
         </div>
       )}
+      <UndoToastStack pending={pendingDeletes} onUndo={undoDelete} />
     </div>
   );
 };
