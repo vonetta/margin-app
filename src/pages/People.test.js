@@ -77,6 +77,43 @@ test("deleting a person requires a confirm step, then defers the DELETE call beh
   await waitFor(() => expect(client.delete).toHaveBeenCalledWith("/api/people/p1"));
 });
 
+test("sets a birthdate and consent, and sends both on save", async () => {
+  client.put.mockResolvedValue({
+    data: { ...roster[0], birthdate: "1990-05-14T00:00:00Z", newsletter_birthday_consent: true },
+  });
+
+  render(<People />);
+  fireEvent.click(await screen.findByText("Apostle Khy Traylor"));
+
+  fireEvent.change(screen.getByLabelText("Birthdate (optional)"), {
+    target: { value: "1990-05-14" },
+  });
+  fireEvent.click(screen.getByLabelText(/OK to include this birthday/));
+  fireEvent.click(screen.getByText("Save"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/people/p1",
+      expect.objectContaining({ birthdate: "1990-05-14", newsletter_birthday_consent: true }),
+    ),
+  );
+});
+
+test("leaving birthdate blank sends undefined instead of an empty string", async () => {
+  client.put.mockResolvedValue({ data: roster[0] });
+
+  render(<People />);
+  fireEvent.click(await screen.findByText("Apostle Khy Traylor"));
+  fireEvent.click(screen.getByText("Save"));
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/people/p1",
+      expect.objectContaining({ birthdate: undefined }),
+    ),
+  );
+});
+
 test("canceling out of the confirm step does not delete", async () => {
   render(<People />);
   const person = await screen.findByText("Apostle Khy Traylor");

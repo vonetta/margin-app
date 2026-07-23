@@ -65,7 +65,17 @@ const sectionTitleStyle = {
   opacity: 0.7,
 };
 
-const emptyForm = { name: "", title: "", role: "member", email: "", bio: "" };
+const emptyForm = {
+  name: "",
+  title: "",
+  role: "member",
+  email: "",
+  bio: "",
+  birthdate: "",
+  newsletter_birthday_consent: false,
+};
+
+const toDateInputValue = (dateStr) => (dateStr ? new Date(dateStr).toISOString().slice(0, 10) : "");
 
 const People = () => {
   const [people, setPeople] = useState([]);
@@ -103,6 +113,8 @@ const People = () => {
       role: person.role || "member",
       email: person.email || "",
       bio: person.bio || "",
+      birthdate: toDateInputValue(person.birthdate),
+      newsletter_birthday_consent: person.newsletter_birthday_consent || false,
     });
     setError("");
     setConfirmDelete(false);
@@ -118,17 +130,21 @@ const People = () => {
   const handleChange = (field) => (e) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
 
+  const handleCheckboxChange = (field) => (e) =>
+    setForm((prev) => ({ ...prev, [field]: e.target.checked }));
+
   const handleSave = async () => {
     if (!form.name.trim()) return;
     setSaving(true);
     setError("");
     try {
+      const payload = { ...form, birthdate: form.birthdate || undefined };
       if (selected === "new") {
-        const res = await client.post("/api/people", form);
+        const res = await client.post("/api/people", payload);
         await fetchPeople();
         selectPerson(res.data);
       } else {
-        const res = await client.put(`/api/people/${selected._id}`, form);
+        const res = await client.put(`/api/people/${selected._id}`, payload);
         await fetchPeople();
         selectPerson(res.data);
       }
@@ -475,6 +491,34 @@ const People = () => {
                 value={form.bio}
                 onChange={handleChange("bio")}
               />
+            </div>
+
+            <div>
+              <label style={labelStyle} htmlFor="person-birthdate">Birthdate (optional)</label>
+              <input
+                id="person-birthdate"
+                type="date"
+                style={inputStyle}
+                value={form.birthdate}
+                onChange={handleChange("birthdate")}
+              />
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  marginTop: "8px",
+                  fontSize: "12px",
+                  color: "var(--gray-600)",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={form.newsletter_birthday_consent}
+                  onChange={handleCheckboxChange("newsletter_birthday_consent")}
+                />
+                OK to include this birthday in the newsletter
+              </label>
             </div>
 
             <div style={{ display: "flex", gap: "8px" }}>
