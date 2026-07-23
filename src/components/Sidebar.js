@@ -21,6 +21,7 @@ const navGroups = [
       { label: "Captions", path: "/content", icon: "✦", hint: "Start from words" },
       { label: "Flyers", path: "/flyers", icon: "▣", hint: "Start from the design" },
       { label: "Communications", path: "/communications", icon: "✉" },
+      { label: "Newsletter", path: "/newsletter", icon: "▤", roles: ["admin", "leader"] },
       { label: "Social Queue", path: "/social-queue", icon: "⌘", adminOnly: true },
     ],
   },

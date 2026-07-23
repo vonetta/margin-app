@@ -36,6 +36,7 @@ test("groups nav items under Create/Operate/Setup headers for an admin", () => {
   expect(screen.getByText("Captions")).toBeInTheDocument();
   expect(screen.getByText("Flyers")).toBeInTheDocument();
   expect(screen.getByText("Communications")).toBeInTheDocument();
+  expect(screen.getByText("Newsletter")).toBeInTheDocument();
   expect(screen.getByText("Social Queue")).toBeInTheDocument();
   expect(screen.getByText("Calendar")).toBeInTheDocument();
   expect(screen.getByText("Tasks")).toBeInTheDocument();
@@ -53,6 +54,7 @@ test("hides admin-only and leader-gated items, and their whole group if nothing'
   render(<Sidebar />);
 
   expect(screen.queryByText("Social Queue")).not.toBeInTheDocument();
+  expect(screen.queryByText("Newsletter")).not.toBeInTheDocument();
   expect(screen.queryByText("Team")).not.toBeInTheDocument();
   expect(screen.queryByText("Meeting Recap")).not.toBeInTheDocument();
   expect(screen.queryByText("SOPs")).not.toBeInTheDocument();
@@ -71,6 +73,7 @@ test("shows Meeting Recap and SOPs for a leader (not just admin)", () => {
 
   expect(screen.getByText("Meeting Recap")).toBeInTheDocument();
   expect(screen.getByText("SOPs")).toBeInTheDocument();
+  expect(screen.getByText("Newsletter")).toBeInTheDocument();
   expect(screen.queryByText("Social Queue")).not.toBeInTheDocument();
   expect(screen.queryByText("Team")).not.toBeInTheDocument();
 });

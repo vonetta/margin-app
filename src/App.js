@@ -20,6 +20,7 @@ import SocialQueue from "./pages/SocialQueue";
 import Sops from "./pages/Sops";
 import MeetingRecap from "./pages/MeetingRecap";
 import PlatformAdmin from "./pages/PlatformAdmin";
+import Newsletter from "./pages/Newsletter";
 
 const AppShell = ({ children }) => (
   <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -162,6 +163,16 @@ const App = () => {
               <ProtectedRoute>
                 <AppShell>
                   <MeetingRecap />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/newsletter"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <Newsletter />
                 </AppShell>
               </ProtectedRoute>
             }
