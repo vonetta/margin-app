@@ -35,6 +35,18 @@ const fullIssue = {
       order: 2,
       content: { entries: [{ name: "Jacob Trenier", date: "2000-07-07T00:00:00Z" }] },
     },
+    {
+      key: "calendar",
+      type: "calendar",
+      title: "Kingdom Calendar",
+      enabled: true,
+      order: 3,
+      content: {
+        entries: [
+          { title: "Prophetic Intensive", start_date: "2026-08-07T13:00:00Z", end_date: "2026-08-09T20:00:00Z", location: "Atlanta, GA" },
+        ],
+      },
+    },
   ],
 };
 
@@ -126,6 +138,167 @@ test("editing a text_block section and saving sends the updated content", async 
       expect.objectContaining({
         sections: expect.arrayContaining([
           expect.objectContaining({ key: "leader_message", content: expect.objectContaining({ body: "Trust the process." }) }),
+        ]),
+      }),
+    ),
+  );
+});
+
+test("filling in the leader message's saying, signature, and quote fields sends them on save", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/newsletter/issues") return Promise.resolve({ data: [issueSummary] });
+    if (url === "/api/newsletter/issues/iss1") return Promise.resolve({ data: fullIssue });
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: fullIssue });
+
+  render(<Newsletter />);
+  fireEvent.click(await screen.findByText("July 2026"));
+  await screen.findByText("From the Leader");
+
+  fireEvent.change(screen.getByPlaceholderText(/Closing line/), {
+    target: { value: "Keep trusting. Keep building. Keep believing." },
+  });
+  fireEvent.change(screen.getByPlaceholderText(/Signature/), { target: { value: "Apostle Khy" } });
+  fireEvent.change(screen.getByPlaceholderText(/Pull-quote/), {
+    target: { value: "The pressure that feels like it will break you is preparing you to carry what will change many." },
+  });
+  fireEvent.click(screen.getAllByText("Save")[0]);
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/newsletter/issues/iss1",
+      expect.objectContaining({
+        sections: expect.arrayContaining([
+          expect.objectContaining({
+            key: "leader_message",
+            content: expect.objectContaining({
+              saying: "Keep trusting. Keep building. Keep believing.",
+              signature: "Apostle Khy",
+              quote: "The pressure that feels like it will break you is preparing you to carry what will change many.",
+            }),
+          }),
+        ]),
+      }),
+    ),
+  );
+});
+
+test("filling in the scholar's-desk title, subtitle, and a key takeaway sends them on save", async () => {
+  const issueWithGuestColumn = {
+    ...fullIssue,
+    sections: [
+      ...fullIssue.sections,
+      {
+        key: "guest_column",
+        type: "text_block",
+        title: "The Scholar's Desk",
+        enabled: true,
+        order: 4,
+        content: { body: "" },
+      },
+    ],
+  };
+  client.get.mockImplementation((url) => {
+    if (url === "/api/newsletter/issues") return Promise.resolve({ data: [issueSummary] });
+    if (url === "/api/newsletter/issues/iss1") return Promise.resolve({ data: issueWithGuestColumn });
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: issueWithGuestColumn });
+
+  render(<Newsletter />);
+  fireEvent.click(await screen.findByText("July 2026"));
+  await screen.findByText("The Scholar's Desk");
+
+  const titleInputs = screen.getAllByPlaceholderText("Title (optional)");
+  fireEvent.change(titleInputs[titleInputs.length - 1], { target: { value: "Cracking the Code" } });
+  const subtitleInputs = screen.getAllByPlaceholderText("Subtitle (optional)");
+  fireEvent.change(subtitleInputs[subtitleInputs.length - 1], {
+    target: { value: "The Mechanics of Under-Pressure Faith" },
+  });
+  fireEvent.click(screen.getAllByText("+ Add takeaway").pop());
+  const takeawayInputs = screen.getAllByPlaceholderText("Takeaway 1");
+  fireEvent.change(takeawayInputs[takeawayInputs.length - 1], {
+    target: { value: "Comfort has both an emotional and legal dimension." },
+  });
+  fireEvent.click(screen.getAllByText("Save")[0]);
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/newsletter/issues/iss1",
+      expect.objectContaining({
+        sections: expect.arrayContaining([
+          expect.objectContaining({
+            key: "guest_column",
+            content: expect.objectContaining({
+              title: "Cracking the Code",
+              subtitle: "The Mechanics of Under-Pressure Faith",
+              key_takeaways: ["Comfort has both an emotional and legal dimension."],
+            }),
+          }),
+        ]),
+      }),
+    ),
+  );
+});
+
+test("the key-takeaways add button disappears once 3 are added", async () => {
+  const issueWithTakeaways = {
+    ...fullIssue,
+    sections: [
+      {
+        key: "guest_column",
+        type: "text_block",
+        title: "The Scholar's Desk",
+        enabled: true,
+        order: 0,
+        content: { body: "", key_takeaways: ["One", "Two", "Three"] },
+      },
+    ],
+  };
+  client.get.mockImplementation((url) => {
+    if (url === "/api/newsletter/issues") return Promise.resolve({ data: [issueSummary] });
+    if (url === "/api/newsletter/issues/iss1") return Promise.resolve({ data: issueWithTakeaways });
+    return Promise.resolve({ data: [] });
+  });
+
+  render(<Newsletter />);
+  fireEvent.click(await screen.findByText("July 2026"));
+  await screen.findByText("The Scholar's Desk");
+
+  expect(screen.queryByText("+ Add takeaway")).not.toBeInTheDocument();
+});
+
+test("setting a calendar entry's start and end dates sends both on save", async () => {
+  client.get.mockImplementation((url) => {
+    if (url === "/api/newsletter/issues") return Promise.resolve({ data: [issueSummary] });
+    if (url === "/api/newsletter/issues/iss1") return Promise.resolve({ data: fullIssue });
+    return Promise.resolve({ data: [] });
+  });
+  client.put.mockResolvedValue({ data: fullIssue });
+
+  render(<Newsletter />);
+  fireEvent.click(await screen.findByText("July 2026"));
+  await screen.findByText("Kingdom Calendar");
+
+  expect(screen.getByDisplayValue("2026-08-07")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("2026-08-09")).toBeInTheDocument();
+
+  fireEvent.click(screen.getAllByText("Save")[0]);
+
+  await waitFor(() =>
+    expect(client.put).toHaveBeenCalledWith(
+      "/api/newsletter/issues/iss1",
+      expect.objectContaining({
+        sections: expect.arrayContaining([
+          expect.objectContaining({
+            key: "calendar",
+            content: expect.objectContaining({
+              entries: expect.arrayContaining([
+                expect.objectContaining({ start_date: "2026-08-07T13:00:00Z", end_date: "2026-08-09T20:00:00Z" }),
+              ]),
+            }),
+          }),
         ]),
       }),
     ),

@@ -233,9 +233,36 @@ const Newsletter = () => {
 
   const renderSectionEditor = (section, index) => {
     switch (section.type) {
-      case "text_block":
+      case "text_block": {
+        // Byline/title/subtitle/key-takeaways/quote/saying/signature/
+        // blog_note are all optional — a plainer text_block section
+        // (e.g. Scripture Meditation) can just leave them blank. Leader
+        // Message and The Scholar's Desk are the two that use most of
+        // this structure.
+        const takeaways = section.content.key_takeaways || [];
         return (
           <>
+            <input
+              value={section.content.byline || ""}
+              onChange={(e) => setSectionField(index, "byline", e.target.value)}
+              disabled={!canEdit}
+              placeholder="Byline (optional, e.g. with Vonetta Stevenson)"
+              style={{ ...inputStyle, marginBottom: "8px" }}
+            />
+            <input
+              value={section.content.title || ""}
+              onChange={(e) => setSectionField(index, "title", e.target.value)}
+              disabled={!canEdit}
+              placeholder="Title (optional)"
+              style={{ ...inputStyle, marginBottom: "8px" }}
+            />
+            <input
+              value={section.content.subtitle || ""}
+              onChange={(e) => setSectionField(index, "subtitle", e.target.value)}
+              disabled={!canEdit}
+              placeholder="Subtitle (optional)"
+              style={{ ...inputStyle, marginBottom: "8px" }}
+            />
             <textarea
               value={section.content.body || ""}
               onChange={(e) => setSectionField(index, "body", e.target.value)}
@@ -249,10 +276,64 @@ const Newsletter = () => {
               onChange={(e) => setSectionField(index, "photo_url", e.target.value)}
               disabled={!canEdit}
               placeholder="Photo URL (optional)"
+              style={{ ...inputStyle, marginBottom: "12px" }}
+            />
+
+            <label style={labelStyle}>Key takeaways (optional, up to 3)</label>
+            {takeaways.map((takeaway, i) => (
+              <div key={i} style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                <input
+                  value={takeaway}
+                  onChange={(e) => updateArrayItem(index, "key_takeaways", i, e.target.value)}
+                  disabled={!canEdit}
+                  placeholder={`Takeaway ${i + 1}`}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                {canEdit && (
+                  <button onClick={() => removeArrayItem(index, "key_takeaways", i)} style={smallButtonStyle}>
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+            {canEdit && takeaways.length < 3 && (
+              <button onClick={() => addArrayItem(index, "key_takeaways", "")} style={{ ...addButtonStyle, marginBottom: "12px" }}>
+                + Add takeaway
+              </button>
+            )}
+
+            <textarea
+              value={section.content.quote || ""}
+              onChange={(e) => setSectionField(index, "quote", e.target.value)}
+              disabled={!canEdit}
+              rows={2}
+              placeholder="Pull-quote (optional) — a short, bold callout"
+              style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6, marginTop: "12px", marginBottom: "8px" }}
+            />
+            <input
+              value={section.content.saying || ""}
+              onChange={(e) => setSectionField(index, "saying", e.target.value)}
+              disabled={!canEdit}
+              placeholder="Closing line (optional, e.g. Keep trusting. Keep building. Keep believing.)"
+              style={{ ...inputStyle, marginBottom: "8px" }}
+            />
+            <input
+              value={section.content.signature || ""}
+              onChange={(e) => setSectionField(index, "signature", e.target.value)}
+              disabled={!canEdit}
+              placeholder="Signature (optional, e.g. Apostle Khy)"
+              style={{ ...inputStyle, marginBottom: "8px" }}
+            />
+            <input
+              value={section.content.blog_note || ""}
+              onChange={(e) => setSectionField(index, "blog_note", e.target.value)}
+              disabled={!canEdit}
+              placeholder="Read-more blurb (optional, e.g. Want to go deeper? Read more on her blog: ...)"
               style={inputStyle}
             />
           </>
         );
+      }
 
       case "list_block": {
         const items = section.content.items || [];
@@ -341,14 +422,34 @@ const Newsletter = () => {
                 />
                 <input
                   type="date"
-                  value={toDateInputValue(entry.date)}
-                  onChange={(e) => updateArrayItem(index, "entries", i, { ...entry, date: e.target.value, recurring_note: "" })}
+                  value={toDateInputValue(entry.start_date)}
+                  onChange={(e) =>
+                    updateArrayItem(index, "entries", i, { ...entry, start_date: e.target.value, recurring_note: "" })
+                  }
                   disabled={!canEdit}
+                  title="Start date"
+                  style={{ ...inputStyle, flex: 1, minWidth: "120px" }}
+                />
+                <input
+                  type="date"
+                  value={toDateInputValue(entry.end_date)}
+                  onChange={(e) =>
+                    updateArrayItem(index, "entries", i, { ...entry, end_date: e.target.value, recurring_note: "" })
+                  }
+                  disabled={!canEdit}
+                  title="End date (optional — for a multi-day event)"
                   style={{ ...inputStyle, flex: 1, minWidth: "120px" }}
                 />
                 <input
                   value={entry.recurring_note || ""}
-                  onChange={(e) => updateArrayItem(index, "entries", i, { ...entry, recurring_note: e.target.value, date: null })}
+                  onChange={(e) =>
+                    updateArrayItem(index, "entries", i, {
+                      ...entry,
+                      recurring_note: e.target.value,
+                      start_date: null,
+                      end_date: null,
+                    })
+                  }
                   disabled={!canEdit}
                   placeholder="or: Weekly / Monthly"
                   style={{ ...inputStyle, flex: 1, minWidth: "120px" }}
@@ -369,7 +470,9 @@ const Newsletter = () => {
             ))}
             {canEdit && (
               <button
-                onClick={() => addArrayItem(index, "entries", { title: "", date: "", recurring_note: "", location: "" })}
+                onClick={() =>
+                  addArrayItem(index, "entries", { title: "", start_date: "", end_date: "", recurring_note: "", location: "" })
+                }
                 style={addButtonStyle}
               >
                 + Add event
