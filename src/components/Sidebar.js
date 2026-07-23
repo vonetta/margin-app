@@ -42,6 +42,12 @@ const navGroups = [
       { label: "Resources", path: "/resources", icon: "▦", comingSoon: true },
     ],
   },
+  {
+    label: "Platform",
+    items: [
+      { label: "Platform Admin", path: "/platform-admin", icon: "⚙", platformAdminOnly: true },
+    ],
+  },
 ];
 
 const Sidebar = () => {
@@ -52,6 +58,10 @@ const Sidebar = () => {
   const memberships = user?.ministries || [];
   const currentRole = memberships.find((m) => m.ministry_id === ministryId)?.role;
   const isVisible = (item) => {
+    // Platform-admin visibility is a property of the account itself, not
+    // of the currently-active ministry — deliberately checked separately
+    // from the role-based rules below, which are all ministry-scoped.
+    if (item.platformAdminOnly) return !!user?.is_platform_admin;
     if (item.roles) return item.roles.includes(currentRole);
     return !item.adminOnly || currentRole === "admin";
   };

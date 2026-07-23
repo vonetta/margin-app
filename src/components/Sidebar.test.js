@@ -97,3 +97,18 @@ test("a coming-soon item has no button role at all", () => {
   render(<Sidebar />);
   expect(screen.queryByRole("button", { name: /Resources/ })).not.toBeInTheDocument();
 });
+
+test("hides Platform Admin for an ordinary user, even an admin of their own ministry", () => {
+  render(<Sidebar />);
+  expect(screen.queryByText("Platform Admin")).not.toBeInTheDocument();
+  expect(screen.queryByText("Platform")).not.toBeInTheDocument();
+});
+
+test("shows Platform Admin only when is_platform_admin is set on the account, regardless of ministry role", () => {
+  mockAuth.user.is_platform_admin = true;
+  mockAuth.user.ministries = [{ ministry_id: "ktm-test", role: "team" }];
+
+  render(<Sidebar />);
+  expect(screen.getByText("Platform Admin")).toBeInTheDocument();
+  expect(screen.getByText("Platform")).toBeInTheDocument();
+});

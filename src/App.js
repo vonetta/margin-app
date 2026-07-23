@@ -19,6 +19,7 @@ import JoinInvite from "./pages/JoinInvite";
 import SocialQueue from "./pages/SocialQueue";
 import Sops from "./pages/Sops";
 import MeetingRecap from "./pages/MeetingRecap";
+import PlatformAdmin from "./pages/PlatformAdmin";
 
 const AppShell = ({ children }) => (
   <div style={{ display: "flex", minHeight: "100vh" }}>
@@ -161,6 +162,16 @@ const App = () => {
               <ProtectedRoute>
                 <AppShell>
                   <MeetingRecap />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/platform-admin"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <PlatformAdmin />
                 </AppShell>
               </ProtectedRoute>
             }
